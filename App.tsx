@@ -320,7 +320,15 @@ function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard transactions={transactions} banks={banks.filter(b => b.active)} forecasts={forecasts} />;
+        return (
+          <Dashboard 
+            transactions={transactions} 
+            banks={banks.filter(b => b.active)} 
+            forecasts={forecasts}
+            categories={categories}
+            onRefresh={fetchInitialData}
+          />
+        );
       case 'transactions':
         return (
           <Transactions 
@@ -356,7 +364,7 @@ function App() {
       case 'forecasts':
         return <Forecasts banks={banks.filter(b => b.active)} categories={categories} />;
       default:
-        return <Dashboard transactions={transactions} banks={banks} forecasts={forecasts} />;
+        return <Dashboard transactions={transactions} banks={banks} forecasts={forecasts} categories={categories} onRefresh={fetchInitialData} />;
     }
   };
 
