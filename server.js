@@ -4,6 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import nodemailer from 'nodemailer'; // Requires npm install nodemailer
 
 // Mock Data Imports for Seeding
 const INITIAL_BANKS_SEED = [
@@ -74,15 +75,45 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Email Logic (Simulation)
+// Email Configuration (Nodemailer)
+// Note: You must run `npm install nodemailer`
+const transporter = nodemailer.createTransport({
+    host: process.env.MAIL_SERVER,
+    port: Number(process.env.MAIL_PORT) || 587,
+    secure: process.env.MAIL_USE_TLS === 'True' || process.env.MAIL_USE_TLS === 'true', // true for 465, false for other ports usually, but gmail uses TLS on 587
+    auth: {
+        user: process.env.MAIL_USERNAME,
+        pass: process.env.MAIL_PASSWORD,
+    },
+});
+
 const sendEmail = async (to, subject, text) => {
-  console.log("==================================================");
-  console.log(`[EMAIL SIMULADO] Enviando para: ${to}`);
-  console.log(`[ASSUNTO]: ${subject}`);
-  console.log(`[CONTEÚDO]: ${text}`);
-  console.log("==================================================");
-  // Returns true to simulate success to the frontend
-  return true; 
+  console.log(`[EMAIL] Tentando enviar para: ${to}`);
+  
+  if (!process.env.MAIL_SERVER || !process.env.MAIL_USERNAME) {
+      console.warn("[EMAIL] Configurações de email não encontradas no .env. Simulando envio.");
+      return true;
+  }
+
+  try {
+      const info = await transporter.sendMail({
+          from: `"Sistema Financeiro" <${process.env.MAIL_USERNAME}>`,
+          to: to,
+          subject: subject,
+          text: text,
+          html: `<div style="font-family: Arial, sans-serif; color: #333;">
+                    <h2>${subject}</h2>
+                    <p>${text}</p>
+                    <hr>
+                    <p style="font-size: 12px; color: #999;">Sistema Financeiro Pro</p>
+                 </div>`
+      });
+      console.log(`[EMAIL] Enviado com sucesso! ID: ${info.messageId}`);
+      return true;
+  } catch (error) {
+      console.error("[EMAIL] Erro ao enviar:", error);
+      return false;
+  }
 };
 
 app.use(cors());
@@ -206,9 +237,9 @@ app.post('/api/signup', (req, res) => {
   db.run(
     `INSERT INTO users (email, password, cnpj, razao_social, phone) VALUES (?, ?, ?, ?, ?)`,
     [email, password, cnpj, razaoSocial, phone],
-    function(err) {
+    async function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      sendEmail(email, "Bem-vindo ao Sistema Financeiro", "Seu cadastro foi realizado com sucesso.");
+      await sendEmail(email, "Bem-vindo ao Sistema Financeiro", "Seu cadastro foi realizado com sucesso.");
       res.json({ id: this.lastID, email, razaoSocial });
     }
   );
@@ -225,11 +256,11 @@ app.post('/api/login', (req, res) => {
 
 app.post('/api/recover-password', (req, res) => {
     const { email } = req.body;
-    db.get(`SELECT * FROM users WHERE email = ?`, [email], (err, row) => {
+    db.get(`SELECT * FROM users WHERE email = ?`, [email], async (err, row) => {
         if (!row) {
              return res.status(404).json({error: "Email não encontrado"});
         }
-        sendEmail(email, "Recuperação de Senha", "Clique aqui para redefinir: https://seu-app.com/reset");
+        await sendEmail(email, "Recuperação de Senha", "Clique aqui para redefinir: https://seu-app.com/reset");
         res.json({ message: 'Email de recuperação enviado.' });
     });
 });

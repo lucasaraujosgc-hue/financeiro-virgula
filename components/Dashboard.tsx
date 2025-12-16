@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Transaction, TransactionType, Bank, Forecast, Category, CategoryType } from '../types';
-import { ArrowUpCircle, ArrowDownCircle, Wallet, AlertCircle, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Wallet, AlertCircle, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardProps {
@@ -20,6 +20,8 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts, c
       date: new Date().toISOString().split('T')[0],
       categoryId: 0,
       bankId: 0,
+      installments: 1,
+      isFixed: false
   });
 
   const currentDate = new Date();
@@ -36,6 +38,8 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts, c
           date: new Date().toISOString().split('T')[0],
           categoryId: 0,
           bankId: banks[0]?.id || 0,
+          installments: 1,
+          isFixed: false
       });
       setIsModalOpen(true);
   };
@@ -47,45 +51,80 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts, c
       }
       
       const value = Math.abs(Number(formData.value));
-      const payload = {
-          date: formData.date,
-          description: formData.description,
-          value: value,
-          type: formData.type,
-          categoryId: Number(formData.categoryId),
-          bankId: Number(formData.bankId)
-      };
+      const groupId = Date.now().toString();
+      const baseDate = new Date(formData.date);
+      
+      // If Fixed, generate for 5 years (60 months)
+      const installments = formData.isFixed ? 60 : Math.max(1, Math.floor(Number(formData.installments)));
 
       try {
-          if (target === 'forecast') {
-              // Thumbs Down: Salva em Previsões
-               await fetch('/api/forecasts', {
-                  method: 'POST',
-                  headers: {'Content-Type': 'application/json'},
-                  body: JSON.stringify({
-                      ...payload,
-                      installmentCurrent: 1,
-                      installmentTotal: 1,
-                      groupId: null
-                  })
-              });
-              alert("Salvo em Previsões!");
-          } else {
-              // Thumbs Up: Salva em Lançamentos
-              await fetch('/api/transactions', {
-                   method: 'POST',
-                   headers: {'Content-Type': 'application/json'},
-                   body: JSON.stringify({
-                       ...payload,
-                       reconciled: false // Padrão pendente, mas já está em Lançamentos
-                   })
-               });
-               alert("Salvo em Lançamentos!");
+          for (let i = 0; i < installments; i++) {
+              const currentDate = new Date(baseDate);
+              currentDate.setMonth(baseDate.getMonth() + i);
+              const dateStr = currentDate.toISOString().split('T')[0];
+              
+              const isRecurrent = installments > 1 || formData.isFixed;
+              const currentInstallment = i + 1;
+              
+              // Logic: 
+              // If Target is FORECAST: All entries are forecasts.
+              // If Target is TRANSACTION: Only the 1st entry (i=0) is a Transaction, the rest are Forecasts.
+              
+              if (target === 'transaction' && i === 0) {
+                  // Create Realized Transaction (The "Thumbs Up" part)
+                  const descSuffix = isRecurrent 
+                    ? (formData.isFixed ? ' (Fixo)' : ` (${currentInstallment}/${installments})`)
+                    : '';
+
+                  await fetch('/api/transactions', {
+                       method: 'POST',
+                       headers: {'Content-Type': 'application/json'},
+                       body: JSON.stringify({
+                           date: dateStr,
+                           description: formData.description + descSuffix,
+                           value: value,
+                           type: formData.type,
+                           categoryId: Number(formData.categoryId),
+                           bankId: Number(formData.bankId),
+                           reconciled: false // Created as pending transaction
+                       })
+                   });
+              } else {
+                  // Create Forecast (Future installments)
+                  const payload = {
+                      date: dateStr,
+                      description: formData.description,
+                      value: value,
+                      type: formData.type,
+                      categoryId: Number(formData.categoryId),
+                      bankId: Number(formData.bankId),
+                      installmentCurrent: currentInstallment,
+                      installmentTotal: formData.isFixed ? 0 : installments,
+                      groupId: isRecurrent ? groupId : null,
+                      realized: false
+                  };
+
+                   await fetch('/api/forecasts', {
+                      method: 'POST',
+                      headers: {'Content-Type': 'application/json'},
+                      body: JSON.stringify(payload)
+                  });
+              }
           }
+
+          if (target === 'forecast') {
+             alert("Previsões geradas com sucesso!");
+          } else {
+             alert(installments > 1 
+                ? "1º lançamento efetivado e parcelas futuras agendadas!" 
+                : "Lançamento efetivado com sucesso!");
+          }
+
           setIsModalOpen(false);
           onRefresh();
       } catch (error) {
           alert("Erro ao salvar");
+          console.error(error);
       }
   };
 
@@ -385,7 +424,39 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts, c
                      </div>
                 </div>
 
-                <div className="pt-4 flex gap-3">
+                {/* Recurrence Options */}
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <label className="text-xs font-semibold text-gray-500 mb-2 block flex items-center gap-2">
+                        <Repeat size={12}/> RECORRÊNCIA (OPCIONAL)
+                    </label>
+                    
+                    <div className="flex items-center gap-4 mb-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                                type="checkbox"
+                                checked={formData.isFixed}
+                                onChange={e => setFormData({...formData, isFixed: e.target.checked})}
+                                className="w-4 h-4 text-blue-600 rounded"
+                            />
+                            <span className="text-sm text-gray-700">Fixo Mensal</span>
+                        </label>
+                    </div>
+
+                    {!formData.isFixed && (
+                            <div className="flex items-center gap-2">
+                            <CalendarDays className="text-gray-400" size={16}/>
+                            <input 
+                                type="number" min="1" max="360"
+                                className="w-16 border border-gray-300 rounded p-1 text-center text-sm"
+                                value={formData.installments}
+                                onChange={e => setFormData({...formData, installments: Number(e.target.value)})}
+                            />
+                            <span className="text-sm text-gray-500">parcelas</span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="pt-2 flex gap-3">
                     <button 
                         type="button"
                         onClick={() => handleQuickSave('forecast')}
@@ -403,7 +474,9 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts, c
                         }`}
                     >
                         <ThumbsUp size={20} />
-                        <span className="text-xs font-semibold">Lançamento (Hoje)</span>
+                        <span className="text-xs font-semibold">
+                            {formData.installments > 1 || formData.isFixed ? 'Lançar 1ª + Previsões' : 'Lançamento (Hoje)'}
+                        </span>
                     </button>
                 </div>
             </div>
