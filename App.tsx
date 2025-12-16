@@ -7,12 +7,13 @@ import Reports from './components/Reports';
 import Login from './components/Login';
 import ForgotPassword from './components/ForgotPassword';
 import SignUp from './components/SignUp';
+import Forecasts from './components/Forecasts';
+import OFXImports from './components/OFXImports';
 import { 
   INITIAL_BANKS, 
-  INITIAL_CATEGORIES, 
-  INITIAL_FORECASTS 
+  INITIAL_CATEGORIES
 } from './services/mockData';
-import { Transaction, Bank, Category, Forecast } from './types';
+import { Transaction, Bank, Category } from './types';
 
 function App() {
   // Auth State
@@ -26,7 +27,6 @@ function App() {
   // Static data for now, could be moved to DB later
   const [banks, setBanks] = useState<Bank[]>(INITIAL_BANKS);
   const [categories] = useState<Category[]>(INITIAL_CATEGORIES);
-  const [forecasts] = useState<Forecast[]>(INITIAL_FORECASTS);
   
   // Data fetched from API
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -225,25 +225,21 @@ function App() {
         return (
           <Transactions 
             transactions={transactions} 
-            banks={banks.filter(b => b.active)} // Só passa bancos ativos para lançamentos
+            banks={banks.filter(b => b.active)}
             categories={categories}
             onAddTransaction={handleAddTransaction}
             onDeleteTransaction={handleDeleteTransaction}
             onReconcile={handleReconcile}
           />
         );
+      case 'import':
+        return <OFXImports banks={banks.filter(b => b.active)} onTransactionsImported={fetchTransactions} />;
       case 'banks':
         return <BankList banks={banks} onUpdateBank={handleUpdateBank} />;
       case 'reports':
         return <Reports transactions={transactions} categories={categories} />;
       case 'forecasts':
-        return (
-          <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Módulo de Previsões</h2>
-            <p className="text-gray-500">Este módulo será implementado na próxima versão.</p>
-            <p className="text-sm text-gray-400 mt-4">Total de previsões cadastradas: {forecasts.length}</p>
-          </div>
-        );
+        return <Forecasts banks={banks.filter(b => b.active)} categories={categories} />;
       default:
         return <Dashboard transactions={transactions} banks={banks} />;
     }

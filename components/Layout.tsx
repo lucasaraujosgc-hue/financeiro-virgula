@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { LayoutDashboard, Wallet, Receipt, PieChart, Landmark, LogOut, Menu, X, ArrowUpRight } from 'lucide-react';
+import { LayoutDashboard, Wallet, Receipt, PieChart, Landmark, LogOut, Menu, X, ArrowUpRight, FileSpreadsheet } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
@@ -14,6 +14,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'transactions', label: 'Lançamentos', icon: Receipt },
+    { id: 'import', label: 'Importações OFX', icon: FileSpreadsheet },
     { id: 'banks', label: 'Bancos', icon: Landmark },
     { id: 'forecasts', label: 'Previsões', icon: ArrowUpRight },
     { id: 'reports', label: 'Relatórios', icon: PieChart },

@@ -24,6 +24,14 @@ export interface Category {
   type: CategoryType;
 }
 
+export interface OFXImport {
+  id: number;
+  fileName: string;
+  importDate: string;
+  bankId: number;
+  transactionCount: number;
+}
+
 export interface Transaction {
   id: number;
   date: string; // ISO Date YYYY-MM-DD
@@ -34,6 +42,7 @@ export interface Transaction {
   categoryId?: number;
   bankId: number;
   reconciled: boolean;
+  ofxImportId?: number | null; // Link to the OFX file
 }
 
 export interface Forecast {
@@ -42,7 +51,12 @@ export interface Forecast {
   description: string;
   value: number;
   type: TransactionType;
-  realized: boolean;
+  bankId: number;
+  categoryId: number;
+  realized: boolean; // Se já foi efetivado virou transação ou não
+  installmentCurrent?: number;
+  installmentTotal?: number;
+  groupId?: string; // Para identificar parcelas do mesmo grupo
 }
 
 export interface DashboardStats {

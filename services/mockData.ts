@@ -78,6 +78,6 @@ export const INITIAL_CATEGORIES: Category[] = [
 export const INITIAL_TRANSACTIONS: Transaction[] = [];
 
 export const INITIAL_FORECASTS: Forecast[] = [
-  { id: 1, date: new Date().toISOString().split('T')[0], description: 'Aluguel Futuro', value: 1500, type: TransactionType.DEBIT, realized: false },
-  { id: 2, date: new Date().toISOString().split('T')[0], description: 'Venda Prevista', value: 3000, type: TransactionType.CREDIT, realized: false },
+  { id: 1, date: new Date().toISOString().split('T')[0], description: 'Aluguel Futuro', value: 1500, type: TransactionType.DEBIT, realized: false, bankId: 1, categoryId: 19 },
+  { id: 2, date: new Date().toISOString().split('T')[0], description: 'Venda Prevista', value: 3000, type: TransactionType.CREDIT, realized: false, bankId: 1, categoryId: 1 },
 ];
