@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bank, Category, Forecast, TransactionType, CategoryType } from '../types';
-import { ChevronLeft, ChevronRight, Plus, Check, Trash2, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Check, Trash2, CalendarDays, Edit2, Repeat, Infinity, X } from 'lucide-react';
 
 interface ForecastsProps {
   banks: Bank[];
@@ -12,7 +12,12 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11
   const [selectedBankId, setSelectedBankId] = useState<number | 'all'>('all');
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  // Delete Modal State
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: number | null }>({ isOpen: false, id: null });
 
   // Form State
   const [formData, setFormData] = useState({
@@ -22,7 +27,8 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
       date: new Date().toISOString().split('T')[0],
       categoryId: 0,
       bankId: banks[0]?.id || 0,
-      installments: 1
+      installments: 1,
+      isFixed: false
   });
 
   const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -40,63 +46,107 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
     }
   };
 
+  const handleEditClick = (f: Forecast) => {
+      setEditingId(f.id);
+      setFormData({
+          description: f.description,
+          value: String(f.value),
+          type: f.type,
+          date: f.date,
+          categoryId: f.categoryId,
+          bankId: f.bankId,
+          installments: 1, // Reset installments for edit simple mode (usually we block editing recurrence structure)
+          isFixed: false
+      });
+      setIsModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const groupId = Date.now().toString(); // Simple ID for the group
-    const baseDate = new Date(formData.date);
-    const installments = Math.max(1, Math.floor(Number(formData.installments)));
     const value = Math.abs(Number(formData.value));
-
-    // Generate installment records
-    for (let i = 0; i < installments; i++) {
-        const currentDate = new Date(baseDate);
-        currentDate.setMonth(baseDate.getMonth() + i);
-        
-        const payload = {
-            date: currentDate.toISOString().split('T')[0],
-            description: formData.description,
-            value: value,
-            type: formData.type,
-            categoryId: Number(formData.categoryId),
-            bankId: Number(formData.bankId),
-            installmentCurrent: i + 1,
-            installmentTotal: installments,
-            groupId: installments > 1 ? groupId : null
-        };
-
-        await fetch('/api/forecasts', {
-            method: 'POST',
+    
+    if (editingId) {
+        // Edit Mode (Simple Update)
+         await fetch(`/api/forecasts/${editingId}`, {
+            method: 'PUT',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                date: formData.date,
+                description: formData.description,
+                value: value,
+                type: formData.type,
+                categoryId: Number(formData.categoryId),
+                bankId: Number(formData.bankId)
+            })
         });
+    } else {
+        // Create Mode
+        const groupId = Date.now().toString(); 
+        const baseDate = new Date(formData.date);
+        
+        // If Fixed, generate for 5 years (60 months) to simulate "Infinite"
+        const installments = formData.isFixed ? 60 : Math.max(1, Math.floor(Number(formData.installments)));
+
+        for (let i = 0; i < installments; i++) {
+            const currentDate = new Date(baseDate);
+            currentDate.setMonth(baseDate.getMonth() + i);
+            
+            const payload = {
+                date: currentDate.toISOString().split('T')[0],
+                description: formData.description,
+                value: value,
+                type: formData.type,
+                categoryId: Number(formData.categoryId),
+                bankId: Number(formData.bankId),
+                installmentCurrent: formData.isFixed ? i + 1 : i + 1,
+                installmentTotal: formData.isFixed ? 0 : installments, // 0 indicates fixed/infinite visually
+                groupId: (installments > 1 || formData.isFixed) ? groupId : null
+            };
+
+            await fetch('/api/forecasts', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+        }
     }
 
     setIsModalOpen(false);
+    setEditingId(null);
+    setFormData({ ...formData, description: '', value: '', installments: 1, isFixed: false });
     fetchForecasts();
-    setFormData({ ...formData, description: '', value: '', installments: 1 });
   };
 
-  const handleDelete = async (id: number) => {
-      if(confirm('Deseja excluir esta previsão?')) {
-          await fetch(`/api/forecasts/${id}`, { method: 'DELETE' });
-          setForecasts(prev => prev.filter(f => f.id !== id));
-      }
+  const handleDeleteClick = (id: number) => {
+      setDeleteModal({ isOpen: true, id });
+  };
+
+  const confirmDelete = async (mode: 'single' | 'all' | 'future') => {
+      if (!deleteModal.id) return;
+      
+      await fetch(`/api/forecasts/${deleteModal.id}?mode=${mode}`, { method: 'DELETE' });
+      setDeleteModal({ isOpen: false, id: null });
+      fetchForecasts();
   };
 
   const handleRealize = async (id: number) => {
-      if(confirm('Confirmar realização desta previsão?')) {
+      if(confirm('Confirmar realização desta previsão? Ela será movida para Lançamentos.')) {
            // Mark as realized in Forecast
            await fetch(`/api/forecasts/${id}/realize`, { method: 'PATCH' });
            
            // Create actual transaction
            const forecast = forecasts.find(f => f.id === id);
            if (forecast) {
+               const descSuffix = forecast.installmentTotal 
+                  ? ` (${forecast.installmentCurrent}/${forecast.installmentTotal})` 
+                  : (forecast.groupId ? ' (Recorrente)' : '');
+
                await fetch('/api/transactions', {
                    method: 'POST',
                    headers: {'Content-Type': 'application/json'},
                    body: JSON.stringify({
                        date: forecast.date,
-                       description: forecast.description + (forecast.installmentTotal ? ` (${forecast.installmentCurrent}/${forecast.installmentTotal})` : ''),
+                       description: forecast.description + descSuffix,
                        value: forecast.value,
                        type: forecast.type,
                        categoryId: forecast.categoryId,
@@ -111,7 +161,6 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
 
   // Filter Logic
   const filteredForecasts = forecasts.filter(f => {
-      const d = new Date(f.date);
       // Adjust for timezone issues with simple date strings by forcing UTC components if needed, or simple split
       const [y, m] = f.date.split('-'); 
       const yearMatch = parseInt(y) === selectedYear;
@@ -163,7 +212,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
            </div>
            
            <button 
-             onClick={() => setIsModalOpen(true)}
+             onClick={() => { setEditingId(null); setIsModalOpen(true); }}
              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 shadow-sm shadow-blue-200"
            >
                <Plus size={18}/> Nova Previsão
@@ -227,6 +276,8 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
                        filteredForecasts.map(f => {
                            const bank = banks.find(b => b.id === f.bankId);
                            const day = f.date.split('-')[2];
+                           const isFixed = f.installmentTotal === 0;
+                           
                            return (
                                <tr key={f.id} className="hover:bg-gray-50">
                                    <td className="px-6 py-3">
@@ -238,7 +289,11 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
                                        {f.value.toFixed(2)}
                                    </td>
                                    <td className="px-6 py-3 text-center">
-                                       {f.installmentTotal ? (
+                                       {isFixed ? (
+                                            <span className="flex items-center justify-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                                                <Infinity size={12}/> Fixo
+                                            </span>
+                                       ) : f.installmentTotal ? (
                                            <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-xs font-semibold">
                                                {f.installmentCurrent}/{f.installmentTotal}
                                            </span>
@@ -253,11 +308,16 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
                                    </td>
                                    <td className="px-6 py-3 text-center flex justify-center gap-2">
                                        {!f.realized && (
-                                           <button onClick={() => handleRealize(f.id)} className="p-1.5 bg-emerald-100 text-emerald-600 rounded hover:bg-emerald-200" title="Efetivar">
-                                               <Check size={16}/>
-                                           </button>
+                                           <>
+                                            <button onClick={() => handleRealize(f.id)} className="p-1.5 bg-emerald-100 text-emerald-600 rounded hover:bg-emerald-200" title="Efetivar">
+                                                <Check size={16}/>
+                                            </button>
+                                            <button onClick={() => handleEditClick(f)} className="p-1.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200" title="Editar">
+                                                <Edit2 size={16}/>
+                                            </button>
+                                           </>
                                        )}
-                                       <button onClick={() => handleDelete(f.id)} className="p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200" title="Excluir">
+                                       <button onClick={() => handleDeleteClick(f.id)} className="p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200" title="Excluir">
                                            <Trash2 size={16}/>
                                        </button>
                                    </td>
@@ -269,13 +329,14 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
            </table>
        </div>
 
-       {/* Modal */}
+       {/* Edit/Create Modal */}
        {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
           <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-              <h3 className="font-semibold text-gray-900">Nova Previsão</h3>
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+              <h3 className="font-semibold text-gray-900">{editingId ? 'Editar Previsão' : 'Nova Previsão'}</h3>
+              <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-gray-400"/></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -341,19 +402,41 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
                          </select>
                      </div>
                 </div>
-                <div>
-                     <label className="text-sm text-gray-700 font-medium block mb-1">Repetição (Parcelas/Meses)</label>
-                     <div className="flex items-center gap-2">
-                        <CalendarDays className="text-gray-400" size={20}/>
-                        <input 
-                            type="number" min="1" max="360"
-                            className="w-20 border border-gray-300 rounded-lg p-2 text-center"
-                            value={formData.installments}
-                            onChange={e => setFormData({...formData, installments: Number(e.target.value)})}
-                        />
-                        <span className="text-sm text-gray-500">vezes (1 = único)</span>
-                     </div>
-                </div>
+                
+                {/* Recurrence Section - Only show on Create */}
+                {!editingId && (
+                    <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                        <label className="text-sm font-semibold text-blue-800 mb-2 block flex items-center gap-2">
+                            <Repeat size={14}/> Recorrência
+                        </label>
+                        
+                        <div className="flex items-center gap-4 mb-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox"
+                                    checked={formData.isFixed}
+                                    onChange={e => setFormData({...formData, isFixed: e.target.checked})}
+                                    className="w-4 h-4 text-blue-600 rounded"
+                                />
+                                <span className="text-sm text-gray-700">Lançamento Fixo Mensal</span>
+                            </label>
+                        </div>
+
+                        {!formData.isFixed && (
+                             <div className="flex items-center gap-2">
+                                <CalendarDays className="text-gray-400" size={20}/>
+                                <input 
+                                    type="number" min="1" max="360"
+                                    className="w-20 border border-gray-300 rounded-lg p-1.5 text-center"
+                                    value={formData.installments}
+                                    onChange={e => setFormData({...formData, installments: Number(e.target.value)})}
+                                />
+                                <span className="text-sm text-gray-500">parcelas</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <div className="pt-4 flex gap-3">
                     <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
                     <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Salvar</button>
@@ -361,6 +444,33 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
             </form>
           </div>
         </div>
+       )}
+
+       {/* Delete Logic Modal */}
+       {deleteModal.isOpen && (
+           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteModal({ isOpen: false, id: null })} />
+                <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center animate-in fade-in zoom-in duration-200">
+                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+                        <Trash2 size={24}/>
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">Excluir Previsão</h3>
+                    <p className="text-gray-500 mb-6 text-sm">Esta previsão parece fazer parte de uma recorrência. Como deseja excluir?</p>
+                    
+                    <div className="space-y-2">
+                        <button onClick={() => confirmDelete('single')} className="w-full py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg font-medium text-sm">
+                            Apenas esta previsão
+                        </button>
+                        <button onClick={() => confirmDelete('future')} className="w-full py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg font-medium text-sm">
+                            Esta e as futuras
+                        </button>
+                        <button onClick={() => confirmDelete('all')} className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm shadow-sm">
+                            Todas as ocorrências
+                        </button>
+                    </div>
+                    <button onClick={() => setDeleteModal({ isOpen: false, id: null })} className="mt-4 text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
+                </div>
+           </div>
        )}
     </div>
   );

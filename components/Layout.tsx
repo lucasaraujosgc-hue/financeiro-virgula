@@ -1,14 +1,15 @@
 import React, { ReactNode } from 'react';
-import { LayoutDashboard, Wallet, Receipt, PieChart, Landmark, LogOut, Menu, X, ArrowUpRight, FileSpreadsheet, Tags, BarChart3, Scale, Calculator } from 'lucide-react';
+import { LayoutDashboard, Receipt, PieChart, Landmark, LogOut, Menu, ArrowUpRight, FileSpreadsheet, Tags, Scale, Calculator } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
   activeTab: string;
   onTabChange: (tab: string) => void;
   onLogout: () => void;
+  userName?: string; // Add userName prop
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLogout }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLogout, userName }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   return (
@@ -30,7 +31,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
         <div className="h-full flex flex-col">
           <div className="p-6 border-b border-gray-100 flex items-center gap-3">
             <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" onError={(e) => {
-                // Fallback if logo.png is missing or broken
                 (e.target as HTMLImageElement).style.display = 'none';
                 (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
             }}/>
@@ -136,7 +136,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                 </div>
             </div>
 
-            {/* Legacy Dashboard Link (Optional, kept at bottom or removed based on "Image" strictness. Assuming Dashboard is the "Home") */}
+            {/* Legacy Dashboard Link */}
             <div className="pt-4 border-t border-gray-100">
                  <button
                   onClick={() => { onTabChange('dashboard'); setIsMobileMenuOpen(false); }}
@@ -153,12 +153,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
 
           <div className="p-4 border-t border-gray-100">
             <div className="flex items-center gap-3 px-3 py-3 mb-2 rounded-lg bg-gray-50">
-              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">
-                JD
+              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs uppercase">
+                {userName ? userName.substring(0,2) : 'EM'}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">John Doe</p>
-                <p className="text-xs text-gray-500 truncate">Admin</p>
+                <p className="text-sm font-medium text-gray-900 truncate">{userName || 'Empresa'}</p>
+                <p className="text-xs text-gray-500 truncate">Logado</p>
               </div>
             </div>
             <button 

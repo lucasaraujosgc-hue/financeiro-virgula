@@ -9,60 +9,78 @@ import ForgotPassword from './components/ForgotPassword';
 import SignUp from './components/SignUp';
 import Forecasts from './components/Forecasts';
 import OFXImports from './components/OFXImports';
-import { 
-  INITIAL_BANKS, 
-  INITIAL_CATEGORIES
-} from './services/mockData';
 import { Transaction, Bank, Category } from './types';
 
 function App() {
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<any>(null); // Store user info
   const [authView, setAuthView] = useState<'login' | 'forgot' | 'signup'>('login');
   const [isLoading, setIsLoading] = useState(false);
 
   // App State
   const [activeTab, setActiveTab] = useState('dashboard');
   
-  // Static data for now, could be moved to DB later
-  const [banks, setBanks] = useState<Bank[]>(INITIAL_BANKS);
-  const [categories] = useState<Category[]>(INITIAL_CATEGORIES);
-  
-  // Data fetched from API
+  // Data State
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   // Check LocalStorage for "Remember Me"
   useEffect(() => {
     const savedAuth = localStorage.getItem('finance_app_auth');
-    if (savedAuth === 'true') {
+    if (savedAuth) {
+      const userData = JSON.parse(savedAuth);
+      setUser(userData);
       setIsAuthenticated(true);
     }
   }, []);
 
-  // Derived state updates
-  useEffect(() => {
-    // Recalculate bank balances based on transactions (Client-side calculation for UI speed)
-    const updatedBanks = banks.map(bank => {
-      const bankTxs = transactions.filter(t => t.bankId === bank.id);
-      const balance = bankTxs.reduce((acc, t) => {
-        return t.type === 'credito' ? acc + t.value : acc - t.value;
-      }, 0);
-      return { ...bank, balance };
-    });
-    
-    // Only update if visually different (avoid simple object ref inequality loops)
-    const balancesChanged = updatedBanks.some((b, i) => b.balance !== banks[i].balance);
-    if (balancesChanged) {
-      setBanks(updatedBanks);
-    }
-  }, [transactions]); 
-
-  // Fetch Transactions on Auth success
+  // Fetch Core Data on Auth
   useEffect(() => {
     if (isAuthenticated) {
-        fetchTransactions();
+        fetchInitialData();
     }
   }, [isAuthenticated]);
+
+  // Derived state updates (Balances)
+  useEffect(() => {
+    if (banks.length > 0 && transactions.length >= 0) {
+        const updatedBanks = banks.map(bank => {
+            const bankTxs = transactions.filter(t => t.bankId === bank.id);
+            const balance = bankTxs.reduce((acc, t) => {
+                return t.type === 'credito' ? acc + t.value : acc - t.value;
+            }, 0);
+            return { ...bank, balance };
+        });
+        
+        // Simple check to avoid loop if nothing changed value-wise
+        const hasChanged = updatedBanks.some((b, i) => b.balance !== banks[i].balance);
+        if (hasChanged) setBanks(updatedBanks);
+    }
+  }, [transactions.length]); // Recalc mainly when transactions array size changes or fetched
+
+  const fetchInitialData = async () => {
+      await Promise.all([
+          fetchBanks(),
+          fetchCategories(),
+          fetchTransactions()
+      ]);
+  };
+
+  const fetchBanks = async () => {
+      try {
+          const res = await fetch('/api/banks');
+          if (res.ok) setBanks(await res.json());
+      } catch (e) { console.error(e) }
+  };
+
+  const fetchCategories = async () => {
+      try {
+          const res = await fetch('/api/categories');
+          if (res.ok) setCategories(await res.json());
+      } catch (e) { console.error(e) }
+  };
 
   const fetchTransactions = async () => {
     try {
@@ -121,8 +139,17 @@ function App() {
     }
   };
 
-  const handleUpdateBank = (updatedBank: Bank) => {
-      setBanks(prev => prev.map(b => b.id === updatedBank.id ? updatedBank : b));
+  const handleUpdateBank = async (updatedBank: Bank) => {
+      try {
+          await fetch(`/api/banks/${updatedBank.id}`, {
+              method: 'PUT',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify(updatedBank)
+          });
+          setBanks(prev => prev.map(b => b.id === updatedBank.id ? updatedBank : b));
+      } catch (e) {
+          alert("Erro ao atualizar banco");
+      }
   };
 
   const handleLogout = () => {
@@ -130,6 +157,7 @@ function App() {
           setIsAuthenticated(false);
           setAuthView('login');
           setActiveTab('dashboard');
+          setUser(null);
           localStorage.removeItem('finance_app_auth');
       }
   };
@@ -145,9 +173,11 @@ function App() {
         });
         
         if (res.ok) {
+            const userData = await res.json();
+            setUser(userData);
             setIsAuthenticated(true);
             if (rememberMe) {
-              localStorage.setItem('finance_app_auth', 'true');
+              localStorage.setItem('finance_app_auth', JSON.stringify(userData));
             }
         } else {
             const err = await res.json();
@@ -169,7 +199,7 @@ function App() {
             body: JSON.stringify(data)
         });
         if (res.ok) {
-            alert("Cadastro realizado! Faça login.");
+            alert("Cadastro realizado com sucesso! Um e-mail de confirmação foi enviado.");
             setAuthView('login');
         } else {
             const err = await res.json();
@@ -237,7 +267,6 @@ function App() {
       case 'banks':
         return <BankList banks={banks} onUpdateBank={handleUpdateBank} />;
       case 'categories':
-        // Placeholder for Categories if not fully implemented yet
         return (
              <div className="bg-white p-8 rounded-xl border border-gray-200 text-center">
                  <h2 className="text-2xl font-bold text-gray-800">Gerenciamento de Categorias</h2>
@@ -261,7 +290,12 @@ function App() {
   };
 
   return (
-    <Layout activeTab={activeTab} onTabChange={setActiveTab} onLogout={handleLogout}>
+    <Layout 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab} 
+        onLogout={handleLogout}
+        userName={user?.razaoSocial}
+    >
       {renderContent()}
     </Layout>
   );

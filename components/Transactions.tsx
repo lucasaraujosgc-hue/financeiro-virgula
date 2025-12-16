@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, TransactionType, Bank, Category, CategoryType } from '../types';
-import { Search, Filter, Plus, Trash2, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, Trash2, Check, X, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -21,10 +21,11 @@ const Transactions: React.FC<TransactionsProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-  // New Transaction Form State
+  // Form State
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     description: '',
@@ -34,24 +35,38 @@ const Transactions: React.FC<TransactionsProps> = ({
     categoryId: 0, 
   });
 
-  // Set default category when modal opens
+  // Reset/Set defaults
   useEffect(() => {
-    if (isModalOpen) {
-      const availableCategories = categories.filter(c => 
-        formData.type === TransactionType.CREDIT 
-          ? c.type === CategoryType.INCOME 
-          : c.type === CategoryType.EXPENSE
-      );
-      const currentCat = categories.find(c => c.id === formData.categoryId);
-      if (!currentCat || (formData.type === TransactionType.CREDIT && currentCat.type !== CategoryType.INCOME) || (formData.type === TransactionType.DEBIT && currentCat.type !== CategoryType.EXPENSE)) {
-         setFormData(prev => ({ ...prev, categoryId: availableCategories[0]?.id || 0 }));
-      }
+    if (isModalOpen && !editingId) {
+       // Reset for new transaction
+       setFormData({
+        date: new Date().toISOString().split('T')[0],
+        description: '',
+        value: '',
+        type: TransactionType.DEBIT,
+        bankId: banks[0]?.id || 0,
+        categoryId: 0, 
+       });
     }
-  }, [formData.type, isModalOpen, categories]);
+  }, [isModalOpen, editingId, banks]);
+
+  const handleEditClick = (t: Transaction) => {
+      setEditingId(t.id);
+      setFormData({
+          date: t.date,
+          description: t.description,
+          value: String(t.value),
+          type: t.type,
+          bankId: t.bankId,
+          categoryId: t.categoryId || 0
+      });
+      setIsModalOpen(true);
+  };
 
   // Filter Transactions based on Time and Bank
   const filteredTransactions = transactions.filter(t => {
     const d = new Date(t.date);
+    // Simple parsing to avoid TZ issues
     const [y, m] = t.date.split('-');
     const yearMatch = parseInt(y) === selectedYear;
     const monthMatch = (parseInt(m) - 1) === selectedMonth;
@@ -64,36 +79,50 @@ const Transactions: React.FC<TransactionsProps> = ({
     return yearMatch && monthMatch && bankMatch && matchesSearch && matchesType;
   });
 
-  // Calculate Totals for the selected period
   const totalIncome = filteredTransactions.filter(t => t.type === TransactionType.CREDIT).reduce((a, b) => a + b.value, 0);
   const totalExpense = filteredTransactions.filter(t => t.type === TransactionType.DEBIT).reduce((a, b) => a + b.value, 0);
   const periodBalance = totalIncome - totalExpense;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onAddTransaction({
+    
+    const payload = {
       date: formData.date,
       description: formData.description,
       value: Math.abs(Number(formData.value)), 
       type: formData.type,
       bankId: Number(formData.bankId),
       categoryId: Number(formData.categoryId),
-      summary: '',
       reconciled: false
-    });
-    setIsModalOpen(false);
-    setFormData({ ...formData, description: '', value: '' });
-  };
+    };
 
-  const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    const numVal = parseFloat(val);
-    let newType = formData.type;
-    if (!isNaN(numVal)) {
-        if (numVal < 0) newType = TransactionType.DEBIT;
-        if (numVal > 0) newType = TransactionType.CREDIT;
+    if (editingId) {
+        // Update Existing
+        try {
+            await fetch(`/api/transactions/${editingId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            // Force refresh logic is currently handled by parent re-fetching in a real app,
+            // or we simulate it here. But in App.tsx `onAddTransaction` only adds. 
+            // We need to trigger a refresh. Since onAddTransaction just adds to state,
+            // we will need to reload page or use a refresh callback. 
+            // For now, we will assume App will fetch or we reload.
+            // A quick hack for this structure is calling `onAddTransaction` with a special flag or just refreshing window.
+            // Better: Pass a refresh callback prop. But let's reuse `onAddTransaction` to trigger a fetch in App if possible,
+            // or simply reload.
+            window.location.reload(); 
+        } catch (error) {
+            alert("Erro ao editar");
+        }
+    } else {
+        // Create New
+        onAddTransaction({ ...payload, summary: '' });
     }
-    setFormData(prev => ({ ...prev, value: val, type: newType }));
+
+    setIsModalOpen(false);
+    setEditingId(null);
   };
 
   const availableCategories = categories.filter(c => 
@@ -110,7 +139,7 @@ const Transactions: React.FC<TransactionsProps> = ({
         </h1>
        </div>
 
-      {/* Filters Header (Matches Forecasts) */}
+      {/* Filters Header */}
       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-end md:items-center justify-between gap-4">
            <div className="flex gap-4 w-full md:w-auto">
                <div>
@@ -135,24 +164,22 @@ const Transactions: React.FC<TransactionsProps> = ({
            </div>
            
            <button 
-             onClick={() => setIsModalOpen(true)}
+             onClick={() => { setEditingId(null); setIsModalOpen(true); }}
              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 shadow-sm shadow-blue-200"
            >
                <Plus size={18}/> Novo Lançamento
            </button>
       </div>
 
-       {/* Month Navigation & Summary (Matches Forecasts) */}
+       {/* Month Navigation & Summary */}
        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
            <div className="flex flex-col lg:flex-row">
-               {/* Month Carousel */}
                <div className="lg:w-1/3 border-b lg:border-b-0 lg:border-r border-gray-100 p-4 flex items-center justify-between">
                     <button onClick={() => setSelectedMonth(prev => prev === 0 ? 11 : prev - 1)} className="p-2 hover:bg-gray-100 rounded-full text-blue-600"><ChevronLeft/></button>
                     <div className="font-bold text-xl text-blue-700">{MONTHS[selectedMonth]}</div>
                     <button onClick={() => setSelectedMonth(prev => prev === 11 ? 0 : prev + 1)} className="p-2 hover:bg-gray-100 rounded-full text-blue-600"><ChevronRight/></button>
                </div>
                
-               {/* Summary Cards */}
                <div className="flex-1 grid grid-cols-3 divide-x divide-gray-100">
                     <div className="p-4 text-center">
                         <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Receitas</div>
@@ -172,7 +199,7 @@ const Transactions: React.FC<TransactionsProps> = ({
            </div>
        </div>
 
-      {/* Internal Search Filter (Kept from original Transactions but styled simpler) */}
+      {/* Internal Search */}
       <div className="bg-white px-4 py-2 border border-gray-200 rounded-lg shadow-sm flex items-center gap-4">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -262,10 +289,18 @@ const Transactions: React.FC<TransactionsProps> = ({
                             </button>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-center">
+                        <td className="px-6 py-4 text-center flex items-center justify-center gap-2">
+                          <button 
+                            onClick={() => handleEditClick(t)}
+                            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                            title="Editar"
+                          >
+                            <Edit2 size={16} />
+                          </button>
                           <button 
                             onClick={() => onDeleteTransaction(t.id)}
                             className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            title="Excluir"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -279,13 +314,13 @@ const Transactions: React.FC<TransactionsProps> = ({
         </div>
       </div>
 
-      {/* Create Modal */}
+      {/* Modal (Add/Edit) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
           <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h3 className="font-semibold text-gray-900">Novo Lançamento</h3>
+              <h3 className="font-semibold text-gray-900">{editingId ? 'Editar Lançamento' : 'Novo Lançamento'}</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
@@ -334,12 +369,21 @@ const Transactions: React.FC<TransactionsProps> = ({
                     type="number" 
                     required
                     step="0.01"
-                    placeholder="0,00 (use negativo para despesa)"
+                    placeholder="0,00"
                     className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-mono font-bold ${
                         formData.type === TransactionType.DEBIT ? 'text-red-600' : 'text-emerald-600'
                     }`}
                     value={formData.value}
-                    onChange={handleValueChange}
+                    onChange={e => {
+                        const val = e.target.value;
+                        const numVal = parseFloat(val);
+                        let newType = formData.type;
+                        if (!isNaN(numVal)) {
+                            if (numVal < 0) newType = TransactionType.DEBIT;
+                            if (numVal > 0) newType = TransactionType.CREDIT;
+                        }
+                        setFormData(prev => ({ ...prev, value: val, type: newType }));
+                    }}
                 />
               </div>
 
@@ -382,7 +426,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                     type="submit"
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm shadow-blue-200"
                 >
-                    Salvar
+                    {editingId ? 'Salvar Alterações' : 'Salvar'}
                 </button>
               </div>
             </form>
