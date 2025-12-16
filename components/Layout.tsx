@@ -5,9 +5,10 @@ interface LayoutProps {
   children: ReactNode;
   activeTab: string;
   onTabChange: (tab: string) => void;
+  onLogout: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLogout }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   const menuItems = [
@@ -78,7 +79,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
                 <p className="text-xs text-gray-500 truncate">Admin</p>
               </div>
             </div>
-            <button className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+            <button 
+              onClick={onLogout}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            >
               <LogOut size={18} />
               Sair
             </button>

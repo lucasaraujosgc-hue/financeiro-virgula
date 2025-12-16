@@ -1,10 +1,26 @@
 import { Bank, Category, CategoryType, Transaction, TransactionType, Forecast } from '../types';
 
-// Initial Mock Data
+// Initial Mock Data with Local Images
 export const INITIAL_BANKS: Bank[] = [
-  { id: 1, name: 'Nubank', accountNumber: '1234-5', nickname: 'Principal', logo: 'https://logo.clearbit.com/nubank.com.br', active: true, balance: 0 },
-  { id: 2, name: 'Itaú', accountNumber: '9876-0', nickname: 'Reserva', logo: 'https://logo.clearbit.com/itau.com.br', active: true, balance: 0 },
-  { id: 3, name: 'Bradesco', accountNumber: '1111-2', nickname: 'PJ', logo: 'https://logo.clearbit.com/bradesco.com.br', active: true, balance: 0 },
+  { id: 1, name: 'Nubank', accountNumber: '1234-5', nickname: 'Principal', logo: '/nubank.jpg', active: true, balance: 0 },
+  { id: 2, name: 'Itaú', accountNumber: '9876-0', nickname: 'Reserva', logo: '/itau.png', active: true, balance: 0 },
+  { id: 3, name: 'Bradesco', accountNumber: '1111-2', nickname: 'PJ', logo: '/bradesco.jpg', active: true, balance: 0 },
+  { id: 4, name: 'Caixa Econômica', accountNumber: '0001-9', nickname: 'Caixa', logo: '/caixa.png', active: true, balance: 0 },
+  { id: 5, name: 'Banco do Brasil', accountNumber: '4455-6', nickname: 'BB', logo: '/bb.png', active: true, balance: 0 },
+  { id: 6, name: 'Santander', accountNumber: '7788-9', nickname: 'Santander', logo: '/santander.png', active: true, balance: 0 },
+  { id: 7, name: 'Inter', accountNumber: '3322-1', nickname: 'Inter', logo: '/inter.png', active: true, balance: 0 },
+  { id: 8, name: 'BTG Pactual', accountNumber: '5566-7', nickname: 'Investimentos', logo: '/btg_pactual.png', active: true, balance: 0 },
+  { id: 9, name: 'C6 Bank', accountNumber: '9988-7', nickname: 'C6', logo: '/c6_bank.png', active: true, balance: 0 },
+  { id: 10, name: 'Sicredi', accountNumber: '1212-3', nickname: 'Cooperativa', logo: '/sicredi.png', active: true, balance: 0 },
+  { id: 11, name: 'Sicoob', accountNumber: '3434-5', nickname: 'Sicoob', logo: '/sicoob.png', active: true, balance: 0 },
+  { id: 12, name: 'Mercado Pago', accountNumber: '0000-0', nickname: 'Vendas', logo: '/mercado_pago.png', active: true, balance: 0 },
+  { id: 13, name: 'PagBank', accountNumber: '0000-0', nickname: 'Maquininha', logo: '/pagbank.png', active: true, balance: 0 },
+  { id: 14, name: 'Stone', accountNumber: '0000-0', nickname: 'Stone', logo: '/stone.png', active: true, balance: 0 },
+  { id: 15, name: 'Banco Safra', accountNumber: '0000-0', nickname: 'Safra', logo: '/safra.png', active: true, balance: 0 },
+  { id: 16, name: 'Banco Pan', accountNumber: '0000-0', nickname: 'Pan', logo: '/banco_pan.png', active: true, balance: 0 },
+  { id: 17, name: 'Banrisul', accountNumber: '0000-0', nickname: 'Sul', logo: '/banrisul.png', active: true, balance: 0 },
+  { id: 18, name: 'Neon', accountNumber: '0000-0', nickname: 'Neon', logo: '/neon.png', active: true, balance: 0 },
+  { id: 19, name: 'Caixa Registradora', accountNumber: '-', nickname: 'Dinheiro Físico', logo: '/caixaf.png', active: true, balance: 0 },
 ];
 
 const INCOME_CATEGORIES = [

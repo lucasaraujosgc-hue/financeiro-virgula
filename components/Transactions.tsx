@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Transaction, TransactionType, Bank, Category, CategoryType } from '../types';
 import { Search, Filter, Plus, Trash2, Check, X, FileDown } from 'lucide-react';
 
@@ -17,6 +17,7 @@ const Transactions: React.FC<TransactionsProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // New Transaction Form State
   const [formData, setFormData] = useState({
@@ -86,6 +87,63 @@ const Transactions: React.FC<TransactionsProps> = ({
     }));
   };
 
+  const handleImportOFX = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (!content) return;
+
+      // Basic REGEX parsing for OFX
+      // Matches <STMTTRN> blocks
+      const transactionsRaw = content.split('<STMTTRN>');
+      let count = 0;
+
+      transactionsRaw.forEach(block => {
+        // Extract Data
+        const typeMatch = block.match(/<TRNTYPE>(.*?)[\r\n<]/);
+        const dateMatch = block.match(/<DTPOSTED>(\d{8})/);
+        const amountMatch = block.match(/<TRNAMT>([\d.-]+)/);
+        const memoMatch = block.match(/<MEMO>(.*?)[\r\n<]/);
+
+        if (dateMatch && amountMatch && memoMatch) {
+            const dateStr = dateMatch[1]; // YYYYMMDD
+            const formattedDate = `${dateStr.substring(0,4)}-${dateStr.substring(4,6)}-${dateStr.substring(6,8)}`;
+            
+            const rawValue = parseFloat(amountMatch[1]);
+            const type = rawValue < 0 ? TransactionType.DEBIT : TransactionType.CREDIT;
+            const value = Math.abs(rawValue);
+            
+            const description = memoMatch[1].trim();
+
+            onAddTransaction({
+                date: formattedDate,
+                description: description,
+                value: value,
+                type: type,
+                bankId: banks[0]?.id || 1, // Default to first bank
+                categoryId: categories[0]?.id || 1, // Default category
+                summary: 'Importado via OFX',
+                reconciled: false
+            });
+            count++;
+        }
+      });
+
+      if (count > 0) {
+          alert(`${count} lançamentos importados com sucesso! Verifique e categorize-os.`);
+      } else {
+          alert("Nenhum lançamento válido encontrado no arquivo OFX.");
+      }
+      
+      // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
+
   const availableCategories = categories.filter(c => 
     formData.type === TransactionType.CREDIT 
       ? c.type === CategoryType.INCOME 
@@ -100,7 +158,17 @@ const Transactions: React.FC<TransactionsProps> = ({
           <p className="text-gray-500">Gerencie todas as suas entradas e saídas</p>
         </div>
         <div className="flex gap-2">
-            <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors">
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleImportOFX} 
+                accept=".ofx" 
+                className="hidden" 
+            />
+            <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+            >
                 <FileDown size={18} />
                 Importar OFX
             </button>

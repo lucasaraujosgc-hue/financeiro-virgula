@@ -34,7 +34,7 @@ function App() {
   // Derived state updates
   useEffect(() => {
     // Recalculate bank balances based on transactions (Client-side calculation for UI speed)
-    const updatedBanks = INITIAL_BANKS.map(bank => {
+    const updatedBanks = banks.map(bank => {
       const bankTxs = transactions.filter(t => t.bankId === bank.id);
       const balance = bankTxs.reduce((acc, t) => {
         return t.type === 'credito' ? acc + t.value : acc - t.value;
@@ -42,12 +42,12 @@ function App() {
       return { ...bank, balance };
     });
     
-    // Only update if visually different to avoid loops
-    const hasChanged = updatedBanks.some((b, i) => b.balance !== banks[i].balance);
-    if (hasChanged) {
+    // Only update if visually different (avoid simple object ref inequality loops)
+    const balancesChanged = updatedBanks.some((b, i) => b.balance !== banks[i].balance);
+    if (balancesChanged) {
       setBanks(updatedBanks);
     }
-  }, [transactions, banks]);
+  }, [transactions]); // removed 'banks' dependency to avoid loop, we map off current state or initial structure but updating state needs care
 
   // Fetch Transactions on Auth success
   useEffect(() => {
@@ -111,6 +111,18 @@ function App() {
     } catch (error) {
         alert("Erro ao atualizar status");
     }
+  };
+
+  const handleUpdateBank = (updatedBank: Bank) => {
+      setBanks(prev => prev.map(b => b.id === updatedBank.id ? updatedBank : b));
+  };
+
+  const handleLogout = () => {
+      if (confirm('Deseja realmente sair?')) {
+          setIsAuthenticated(false);
+          setAuthView('login');
+          setActiveTab('dashboard');
+      }
   };
 
   // Auth Handlers with API
@@ -209,7 +221,7 @@ function App() {
           />
         );
       case 'banks':
-        return <BankList banks={banks} />;
+        return <BankList banks={banks} onUpdateBank={handleUpdateBank} />;
       case 'reports':
         return <Reports transactions={transactions} categories={categories} />;
       case 'forecasts':
@@ -226,7 +238,7 @@ function App() {
   };
 
   return (
-    <Layout activeTab={activeTab} onTabChange={setActiveTab}>
+    <Layout activeTab={activeTab} onTabChange={setActiveTab} onLogout={handleLogout}>
       {renderContent()}
     </Layout>
   );
