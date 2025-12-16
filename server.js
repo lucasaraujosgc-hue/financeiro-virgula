@@ -4,7 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import nodemailer from 'nodemailer'; // Requires npm install nodemailer
+import nodemailer from 'nodemailer';
 
 // Mock Data Imports for Seeding
 const INITIAL_BANKS_SEED = [
@@ -75,12 +75,15 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Email Configuration (Nodemailer)
-// Note: You must run `npm install nodemailer`
+// Configuração de Email
+// Lógica para porta 587 (STARTTLS) vs 465 (SSL/TLS Implícito)
+const mailPort = Number(process.env.MAIL_PORT) || 587;
+const mailSecure = mailPort === 465 ? true : false; // Força false para 587, pois usa STARTTLS
+
 const transporter = nodemailer.createTransport({
     host: process.env.MAIL_SERVER,
-    port: Number(process.env.MAIL_PORT) || 587,
-    secure: process.env.MAIL_USE_TLS === 'True' || process.env.MAIL_USE_TLS === 'true', // true for 465, false for other ports usually, but gmail uses TLS on 587
+    port: mailPort,
+    secure: mailSecure, 
     auth: {
         user: process.env.MAIL_USERNAME,
         pass: process.env.MAIL_PASSWORD,
@@ -88,7 +91,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendEmail = async (to, subject, text) => {
-  console.log(`[EMAIL] Tentando enviar para: ${to}`);
+  console.log(`[EMAIL] Iniciando envio para: ${to}`);
   
   if (!process.env.MAIL_SERVER || !process.env.MAIL_USERNAME) {
       console.warn("[EMAIL] Configurações de email não encontradas no .env. Simulando envio.");
@@ -108,10 +111,10 @@ const sendEmail = async (to, subject, text) => {
                     <p style="font-size: 12px; color: #999;">Sistema Financeiro Pro</p>
                  </div>`
       });
-      console.log(`[EMAIL] Enviado com sucesso! ID: ${info.messageId}`);
+      console.log(`[EMAIL] Sucesso! ID: ${info.messageId}`);
       return true;
   } catch (error) {
-      console.error("[EMAIL] Erro ao enviar:", error);
+      console.error("[EMAIL] Erro FATAL ao enviar:", error);
       return false;
   }
 };
