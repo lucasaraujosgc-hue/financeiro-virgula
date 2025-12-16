@@ -11,6 +11,32 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Email Configuration (Variables ready for .env usage)
+const MAIL_CONFIG = {
+  host: process.env.MAIL_SERVER || 'smtp.gmail.com',
+  port: process.env.MAIL_PORT || 587,
+  secure: process.env.MAIL_USE_TLS === 'true', // true for 465, false for other ports
+  auth: {
+    user: process.env.MAIL_USERNAME,
+    pass: process.env.MAIL_PASSWORD
+  }
+};
+
+// Mock Email Sender Function
+const sendEmail = async (to, subject, text) => {
+  console.log("---------------------------------------------------");
+  console.log(`[MOCK EMAIL SENDER]`);
+  console.log(`Using Config: ${MAIL_CONFIG.host}:${MAIL_CONFIG.port}`);
+  console.log(`To: ${to}`);
+  console.log(`Subject: ${subject}`);
+  console.log(`Body: ${text}`);
+  console.log("---------------------------------------------------");
+  // In a real scenario, you would use nodemailer here:
+  // let transporter = nodemailer.createTransport(MAIL_CONFIG);
+  // await transporter.sendMail({ from: MAIL_CONFIG.auth.user, to, subject, text });
+  return true; 
+};
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -80,6 +106,10 @@ app.post('/api/signup', (req, res) => {
         }
         return res.status(500).json({ error: err.message });
       }
+      
+      // Send Welcome Email
+      sendEmail(email, "Bem-vindo ao Sistema Financeiro", "Seu cadastro foi realizado com sucesso.");
+
       res.json({ id: this.lastID, email });
     }
   );
@@ -103,6 +133,8 @@ app.post('/api/recover-password', (req, res) => {
         if(!row) return res.status(404).json({error: 'Email não encontrado.'});
         
         // Simulating email sending
+        sendEmail(email, "Recuperação de Senha", "Clique no link para redefinir sua senha: http://localhost:3000/reset");
+        
         res.json({ message: 'Email de recuperação enviado.' });
     });
 });

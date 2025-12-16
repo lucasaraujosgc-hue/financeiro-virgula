@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Lock, Mail, ArrowRight } from 'lucide-react';
 
 interface LoginProps {
-  onLogin: (data: any) => void;
+  onLogin: (data: any, rememberMe: boolean) => void;
   onForgotPassword: () => void;
   onSignUp: () => void;
   isLoading: boolean;
@@ -11,10 +11,11 @@ interface LoginProps {
 const Login: React.FC<LoginProps> = ({ onLogin, onForgotPassword, onSignUp, isLoading }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin({ email, password });
+    onLogin({ email, password }, rememberMe);
   };
 
   return (
@@ -60,6 +61,20 @@ const Login: React.FC<LoginProps> = ({ onLogin, onForgotPassword, onSignUp, isLo
                   placeholder="••••••••"
                 />
               </div>
+            </div>
+
+            <div className="flex items-center">
+              <input
+                id="remember-me"
+                name="remember-me"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
+                Permanecer conectado
+              </label>
             </div>
 
             <button

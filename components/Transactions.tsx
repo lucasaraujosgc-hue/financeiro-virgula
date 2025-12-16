@@ -17,6 +17,7 @@ const Transactions: React.FC<TransactionsProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // New Transaction Form State
@@ -26,10 +27,17 @@ const Transactions: React.FC<TransactionsProps> = ({
     value: '',
     type: TransactionType.DEBIT,
     bankId: banks[0]?.id || 0,
-    categoryId: 0, // Will set default in useEffect
+    categoryId: 0, 
   });
 
-  // Set default category when modal opens or type changes
+  // Import Config State
+  const [importConfig, setImportConfig] = useState({
+    bankId: banks[0]?.id || 0,
+    startDate: '',
+    endDate: ''
+  });
+
+  // Set default category when modal opens
   useEffect(() => {
     if (isModalOpen) {
       const availableCategories = categories.filter(c => 
@@ -37,14 +45,19 @@ const Transactions: React.FC<TransactionsProps> = ({
           ? c.type === CategoryType.INCOME 
           : c.type === CategoryType.EXPENSE
       );
-      
-      // If current category doesn't match the type, switch to the first available one
       const currentCat = categories.find(c => c.id === formData.categoryId);
       if (!currentCat || (formData.type === TransactionType.CREDIT && currentCat.type !== CategoryType.INCOME) || (formData.type === TransactionType.DEBIT && currentCat.type !== CategoryType.EXPENSE)) {
          setFormData(prev => ({ ...prev, categoryId: availableCategories[0]?.id || 0 }));
       }
     }
   }, [formData.type, isModalOpen, categories]);
+
+  // Update default bank ID for import if banks change
+  useEffect(() => {
+      if(banks.length > 0 && importConfig.bankId === 0) {
+          setImportConfig(prev => ({...prev, bankId: banks[0].id}));
+      }
+  }, [banks]);
 
   const filteredTransactions = transactions.filter(t => {
     const matchesSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase());
@@ -57,7 +70,6 @@ const Transactions: React.FC<TransactionsProps> = ({
     onAddTransaction({
       date: formData.date,
       description: formData.description,
-      // Save absolute value, type determines the sign in logic
       value: Math.abs(Number(formData.value)), 
       type: formData.type,
       bankId: Number(formData.bankId),
@@ -72,50 +84,48 @@ const Transactions: React.FC<TransactionsProps> = ({
   const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     const numVal = parseFloat(val);
-    
-    // Auto-detect type based on sign
     let newType = formData.type;
     if (!isNaN(numVal)) {
         if (numVal < 0) newType = TransactionType.DEBIT;
         if (numVal > 0) newType = TransactionType.CREDIT;
     }
-
-    setFormData(prev => ({
-        ...prev,
-        value: val,
-        type: newType
-    }));
+    setFormData(prev => ({ ...prev, value: val, type: newType }));
   };
 
-  const handleImportOFX = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  const processOFXFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
       if (!content) return;
 
-      // Basic REGEX parsing for OFX
-      // Matches <STMTTRN> blocks
       const transactionsRaw = content.split('<STMTTRN>');
       let count = 0;
+      let ignored = 0;
+
+      const start = importConfig.startDate ? new Date(importConfig.startDate) : null;
+      const end = importConfig.endDate ? new Date(importConfig.endDate) : null;
 
       transactionsRaw.forEach(block => {
-        // Extract Data
         const typeMatch = block.match(/<TRNTYPE>(.*?)[\r\n<]/);
         const dateMatch = block.match(/<DTPOSTED>(\d{8})/);
         const amountMatch = block.match(/<TRNAMT>([\d.-]+)/);
         const memoMatch = block.match(/<MEMO>(.*?)[\r\n<]/);
 
         if (dateMatch && amountMatch && memoMatch) {
-            const dateStr = dateMatch[1]; // YYYYMMDD
-            const formattedDate = `${dateStr.substring(0,4)}-${dateStr.substring(4,6)}-${dateStr.substring(6,8)}`;
+            const dateStr = dateMatch[1]; 
+            const year = dateStr.substring(0,4);
+            const month = dateStr.substring(4,6);
+            const day = dateStr.substring(6,8);
+            const formattedDate = `${year}-${month}-${day}`;
+            const txDate = new Date(formattedDate);
             
+            // Date Filter Check
+            if (start && txDate < start) { ignored++; return; }
+            if (end && txDate > end) { ignored++; return; }
+
             const rawValue = parseFloat(amountMatch[1]);
             const type = rawValue < 0 ? TransactionType.DEBIT : TransactionType.CREDIT;
             const value = Math.abs(rawValue);
-            
             const description = memoMatch[1].trim();
 
             onAddTransaction({
@@ -123,8 +133,8 @@ const Transactions: React.FC<TransactionsProps> = ({
                 description: description,
                 value: value,
                 type: type,
-                bankId: banks[0]?.id || 1, // Default to first bank
-                categoryId: categories[0]?.id || 1, // Default category
+                bankId: Number(importConfig.bankId),
+                categoryId: 0, // Categoria Vazia (0)
                 summary: 'Importado via OFX',
                 reconciled: false
             });
@@ -132,16 +142,16 @@ const Transactions: React.FC<TransactionsProps> = ({
         }
       });
 
-      if (count > 0) {
-          alert(`${count} lançamentos importados com sucesso! Verifique e categorize-os.`);
-      } else {
-          alert("Nenhum lançamento válido encontrado no arquivo OFX.");
-      }
-      
-      // Reset input
+      alert(`${count} lançamentos importados com sucesso!\n${ignored} ignorados fora do período.`);
+      setIsImportModalOpen(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) processOFXFile(file);
   };
 
   const availableCategories = categories.filter(c => 
@@ -158,15 +168,8 @@ const Transactions: React.FC<TransactionsProps> = ({
           <p className="text-gray-500">Gerencie todas as suas entradas e saídas</p>
         </div>
         <div className="flex gap-2">
-            <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleImportOFX} 
-                accept=".ofx" 
-                className="hidden" 
-            />
             <button 
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setIsImportModalOpen(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
             >
                 <FileDown size={18} />
@@ -244,8 +247,8 @@ const Transactions: React.FC<TransactionsProps> = ({
                         </td>
                         <td className="px-6 py-4 font-medium text-gray-900">{t.description}</td>
                         <td className="px-6 py-4">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            {category?.name || 'Geral'}
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${!category ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-gray-100 text-gray-800'}`}>
+                            {category?.name || 'Sem Categoria'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-gray-500">{bank?.name}</td>
@@ -284,7 +287,7 @@ const Transactions: React.FC<TransactionsProps> = ({
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Create Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
@@ -346,9 +349,6 @@ const Transactions: React.FC<TransactionsProps> = ({
                     value={formData.value}
                     onChange={handleValueChange}
                 />
-                <p className="text-xs text-gray-500">
-                    Dica: Digite um valor negativo (-) para identificar automaticamente como despesa.
-                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -394,6 +394,68 @@ const Transactions: React.FC<TransactionsProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsImportModalOpen(false)} />
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="font-semibold text-gray-900">Importar OFX</h3>
+              <button onClick={() => setIsImportModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+                <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Vincular a Conta Bancária</label>
+                    <select 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                        value={importConfig.bankId}
+                        onChange={e => setImportConfig({...importConfig, bankId: Number(e.target.value)})}
+                    >
+                        {banks.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-gray-700">Data Inicial</label>
+                        <input 
+                            type="date"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                            value={importConfig.startDate}
+                            onChange={e => setImportConfig({...importConfig, startDate: e.target.value})}
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-gray-700">Data Final</label>
+                        <input 
+                            type="date"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                            value={importConfig.endDate}
+                            onChange={e => setImportConfig({...importConfig, endDate: e.target.value})}
+                        />
+                    </div>
+                </div>
+
+                <div className="pt-2">
+                    <p className="text-sm text-gray-500 mb-2">Selecione o arquivo OFX para iniciar a importação.</p>
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileChange} 
+                        accept=".ofx" 
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                    />
+                </div>
+            </div>
           </div>
         </div>
       )}

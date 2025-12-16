@@ -31,6 +31,14 @@ function App() {
   // Data fetched from API
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
+  // Check LocalStorage for "Remember Me"
+  useEffect(() => {
+    const savedAuth = localStorage.getItem('finance_app_auth');
+    if (savedAuth === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
   // Derived state updates
   useEffect(() => {
     // Recalculate bank balances based on transactions (Client-side calculation for UI speed)
@@ -47,7 +55,7 @@ function App() {
     if (balancesChanged) {
       setBanks(updatedBanks);
     }
-  }, [transactions]); // removed 'banks' dependency to avoid loop, we map off current state or initial structure but updating state needs care
+  }, [transactions]); 
 
   // Fetch Transactions on Auth success
   useEffect(() => {
@@ -122,11 +130,12 @@ function App() {
           setIsAuthenticated(false);
           setAuthView('login');
           setActiveTab('dashboard');
+          localStorage.removeItem('finance_app_auth');
       }
   };
 
   // Auth Handlers with API
-  const handleLogin = async (data: any) => {
+  const handleLogin = async (data: any, rememberMe: boolean) => {
     setIsLoading(true);
     try {
         const res = await fetch('/api/login', {
@@ -137,6 +146,9 @@ function App() {
         
         if (res.ok) {
             setIsAuthenticated(true);
+            if (rememberMe) {
+              localStorage.setItem('finance_app_auth', 'true');
+            }
         } else {
             const err = await res.json();
             alert(err.error || "Erro no login");
@@ -208,12 +220,12 @@ function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard transactions={transactions} banks={banks} />;
+        return <Dashboard transactions={transactions} banks={banks.filter(b => b.active)} />;
       case 'transactions':
         return (
           <Transactions 
             transactions={transactions} 
-            banks={banks} 
+            banks={banks.filter(b => b.active)} // Só passa bancos ativos para lançamentos
             categories={categories}
             onAddTransaction={handleAddTransaction}
             onDeleteTransaction={handleDeleteTransaction}
