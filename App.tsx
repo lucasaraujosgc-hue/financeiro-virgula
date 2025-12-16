@@ -9,7 +9,8 @@ import ForgotPassword from './components/ForgotPassword';
 import SignUp from './components/SignUp';
 import Forecasts from './components/Forecasts';
 import OFXImports from './components/OFXImports';
-import { Transaction, Bank, Category } from './types';
+import Categories from './components/Categories';
+import { Transaction, Bank, Category, Forecast } from './types';
 
 function App() {
   // Auth State
@@ -25,6 +26,7 @@ function App() {
   const [banks, setBanks] = useState<Bank[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [forecasts, setForecasts] = useState<Forecast[]>([]);
 
   // Check LocalStorage for "Remember Me"
   useEffect(() => {
@@ -58,13 +60,14 @@ function App() {
         const hasChanged = updatedBanks.some((b, i) => b.balance !== banks[i].balance);
         if (hasChanged) setBanks(updatedBanks);
     }
-  }, [transactions.length]); // Recalc mainly when transactions array size changes or fetched
+  }, [transactions.length]); 
 
   const fetchInitialData = async () => {
       await Promise.all([
           fetchBanks(),
           fetchCategories(),
-          fetchTransactions()
+          fetchTransactions(),
+          fetchForecasts()
       ]);
   };
 
@@ -92,6 +95,46 @@ function App() {
     } catch (error) {
         console.error("Failed to fetch transactions", error);
     }
+  };
+
+  const fetchForecasts = async () => {
+    try {
+        const res = await fetch('/api/forecasts');
+        if (res.ok) {
+            setForecasts(await res.json());
+        }
+    } catch (error) {
+        console.error("Failed to fetch forecasts", error);
+    }
+  };
+
+  const handleAddCategory = async (category: Omit<Category, 'id'>) => {
+      try {
+          const res = await fetch('/api/categories', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify(category)
+          });
+          if (res.ok) {
+              const newCat = await res.json();
+              setCategories(prev => [...prev, newCat]);
+          }
+      } catch (e) {
+          alert("Erro ao adicionar categoria");
+      }
+  };
+
+  const handleDeleteCategory = async (id: number) => {
+      if(confirm('Deseja excluir esta categoria?')) {
+          try {
+              const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+              if (res.ok) {
+                  setCategories(prev => prev.filter(c => c.id !== id));
+              }
+          } catch (e) {
+              alert("Erro ao excluir categoria");
+          }
+      }
   };
 
   const handleAddTransaction = async (newTx: Omit<Transaction, 'id'>) => {
@@ -250,7 +293,7 @@ function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard transactions={transactions} banks={banks.filter(b => b.active)} />;
+        return <Dashboard transactions={transactions} banks={banks.filter(b => b.active)} forecasts={forecasts} />;
       case 'transactions':
         return (
           <Transactions 
@@ -268,24 +311,18 @@ function App() {
         return <BankList banks={banks} onUpdateBank={handleUpdateBank} />;
       case 'categories':
         return (
-             <div className="bg-white p-8 rounded-xl border border-gray-200 text-center">
-                 <h2 className="text-2xl font-bold text-gray-800">Gerenciamento de Categorias</h2>
-                 <p className="text-gray-500 mt-2">Funcionalidade em desenvolvimento.</p>
-                 <div className="mt-6 flex flex-wrap gap-2 justify-center">
-                     {categories.map(c => (
-                         <span key={c.id} className="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700">
-                             {c.name}
-                         </span>
-                     ))}
-                 </div>
-             </div>
+            <Categories 
+                categories={categories} 
+                onAddCategory={handleAddCategory}
+                onDeleteCategory={handleDeleteCategory}
+            />
         );
       case 'reports':
         return <Reports transactions={transactions} categories={categories} />;
       case 'forecasts':
         return <Forecasts banks={banks.filter(b => b.active)} categories={categories} />;
       default:
-        return <Dashboard transactions={transactions} banks={banks} />;
+        return <Dashboard transactions={transactions} banks={banks} forecasts={forecasts} />;
     }
   };
 

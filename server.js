@@ -6,8 +6,6 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 
 // Mock Data Imports for Seeding
-// Note: In a real module system without bundler, importing json or ts directly might require adjustments. 
-// We will define the seed data inline here to avoid complexity with ts-node/loaders in this specific setup.
 const INITIAL_BANKS_SEED = [
   { name: 'Nubank', accountNumber: '1234-5', nickname: 'Principal', logo: '/nubank.jpg', active: 0, balance: 0 },
   { name: 'Itaú', accountNumber: '9876-0', nickname: 'Reserva', logo: '/itau.png', active: 0, balance: 0 },
@@ -30,23 +28,44 @@ const INITIAL_BANKS_SEED = [
   { name: 'Caixa Registradora', accountNumber: '-', nickname: 'Dinheiro Físico', logo: '/caixaf.png', active: 0, balance: 0 },
 ];
 
+const RECEITAS_LIST = [
+    'Vendas de Mercadorias',
+    'Prestação de Serviços',
+    'Receita de Aluguel',
+    'Comissões Recebidas',
+    'Receita Financeira (juros, rendimentos, aplicações)',
+    'Devoluções de Despesas',
+    'Reembolsos de Clientes',
+    'Transferências Internas (entre contas)',
+    'Aportes de Sócios / Investimentos',
+    'Outras Receitas Operacionais',
+    'Receitas Não Operacionais (ex: venda de ativo imobilizado)'
+];
+
+const DESPESAS_LIST = [
+    'Compra de Mercadorias / Matéria-Prima',
+    'Fretes e Transportes',
+    'Despesas com Pessoal (salários, pró-labore, encargos)',
+    'Serviços de Terceiros (contabilidade, marketing, consultorias)',
+    'Despesas Administrativas (papelaria, materiais de escritório)',
+    'Despesas Comerciais (comissões, propaganda, brindes)',
+    'Energia Elétrica / Água / Telefone / Internet',
+    'Aluguel e Condomínio',
+    'Manutenção e Limpeza',
+    'Combustível e Deslocamento',
+    'Seguros (veicular, empresarial, de vida, etc.)',
+    'Tarifas Bancárias e Juros',
+    'Impostos e Taxas (ISS, ICMS, DAS, etc.)',
+    'Despesas Financeiras (juros sobre empréstimos, multas, IOF)',
+    'Transferências Internas (entre contas)',
+    'Distribuição de Lucros / Retirada de Sócios',
+    'Outras Despesas Operacionais',
+    'Despesas Não Operacionais (venda de bens, baixas contábeis)'
+];
+
 const INITIAL_CATEGORIES_SEED = [
-    { name: 'Vendas de Mercadorias', type: 'receita' },
-    { name: 'Prestação de Serviços', type: 'receita' },
-    { name: 'Receita de Aluguel', type: 'receita' },
-    { name: 'Comissões Recebidas', type: 'receita' },
-    { name: 'Receita Financeira', type: 'receita' },
-    { name: 'Outras Receitas', type: 'receita' },
-    { name: 'Compra de Mercadorias', type: 'despesa' },
-    { name: 'Fretes e Transportes', type: 'despesa' },
-    { name: 'Despesas com Pessoal', type: 'despesa' },
-    { name: 'Serviços de Terceiros', type: 'despesa' },
-    { name: 'Despesas Administrativas', type: 'despesa' },
-    { name: 'Despesas Comerciais', type: 'despesa' },
-    { name: 'Energia/Água/Internet', type: 'despesa' },
-    { name: 'Aluguel', type: 'despesa' },
-    { name: 'Impostos e Taxas', type: 'despesa' },
-    { name: 'Outras Despesas', type: 'despesa' }
+    ...RECEITAS_LIST.map(name => ({ name, type: 'receita' })),
+    ...DESPESAS_LIST.map(name => ({ name, type: 'despesa' }))
 ];
 
 const __filename = fileURLToPath(import.meta.url);
@@ -206,10 +225,8 @@ app.post('/api/login', (req, res) => {
 
 app.post('/api/recover-password', (req, res) => {
     const { email } = req.body;
-    // Logica simples de validação se email existe
     db.get(`SELECT * FROM users WHERE email = ?`, [email], (err, row) => {
         if (!row) {
-             // Por segurança, as vezes não se avisa que não existe, mas aqui vamos avisar para facilitar
              return res.status(404).json({error: "Email não encontrado"});
         }
         sendEmail(email, "Recuperação de Senha", "Clique aqui para redefinir: https://seu-app.com/reset");
@@ -253,6 +270,25 @@ app.get('/api/categories', (req, res) => {
     });
 });
 
+app.post('/api/categories', (req, res) => {
+    const { name, type } = req.body;
+    db.run(
+        `INSERT INTO categories (name, type) VALUES (?, ?)`,
+        [name, type],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ id: this.lastID, name, type });
+        }
+    );
+});
+
+app.delete('/api/categories/:id', (req, res) => {
+    db.run(`DELETE FROM categories WHERE id = ?`, [req.params.id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ deleted: this.changes });
+    });
+});
+
 // TRANSACTIONS
 app.get('/api/transactions', (req, res) => {
   db.all(`SELECT * FROM transactions ORDER BY date DESC`, [], (err, rows) => {
@@ -284,7 +320,6 @@ app.post('/api/transactions', (req, res) => {
   );
 });
 
-// EDIT TRANSACTION
 app.put('/api/transactions/:id', (req, res) => {
   const { date, description, value, type, categoryId, bankId } = req.body;
   db.run(
@@ -399,9 +434,8 @@ app.put('/api/forecasts/:id', (req, res) => {
     );
 });
 
-// Advanced Delete Forecast
 app.delete('/api/forecasts/:id', (req, res) => {
-    const { mode } = req.query; // 'single', 'all', 'future'
+    const { mode } = req.query; 
     const id = req.params.id;
 
     if (!mode || mode === 'single') {
@@ -410,11 +444,9 @@ app.delete('/api/forecasts/:id', (req, res) => {
             res.json({ deleted: this.changes });
         });
     } else {
-        // Need to find the forecast details first to get group_id and date
         db.get(`SELECT group_id, date FROM forecasts WHERE id = ?`, [id], (err, row) => {
             if (err) return res.status(500).json({error: err.message});
             if (!row || !row.group_id) {
-                // If no group_id, just delete single
                 db.run(`DELETE FROM forecasts WHERE id = ?`, [id]);
                 return res.json({ deleted: 1 });
             }

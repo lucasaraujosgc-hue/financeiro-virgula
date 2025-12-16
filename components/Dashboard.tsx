@@ -1,37 +1,74 @@
 import React from 'react';
-import { Transaction, TransactionType, Bank } from '../types';
-import { ArrowUpCircle, ArrowDownCircle, Wallet, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Transaction, TransactionType, Bank, Forecast } from '../types';
+import { ArrowUpCircle, ArrowDownCircle, Wallet, AlertCircle, CheckCircle2, TrendingUp, TrendingDown } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardProps {
   transactions: Transaction[];
   banks: Bank[];
+  forecasts: Forecast[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ transactions, banks }) => {
-  // Calculate Totals
-  const totalIncome = transactions
+const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts }) => {
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+  const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+  // 1. Calculate General Total Balance (All Time)
+  const allTimeIncome = transactions
     .filter(t => t.type === TransactionType.CREDIT)
     .reduce((acc, curr) => acc + curr.value, 0);
 
-  const totalExpense = transactions
+  const allTimeExpense = transactions
     .filter(t => t.type === TransactionType.DEBIT)
     .reduce((acc, curr) => acc + curr.value, 0);
 
-  const totalBalance = totalIncome - totalExpense;
+  const totalBalance = allTimeIncome - allTimeExpense;
+
+  // 2. Calculate Current Month Realized
+  const currentMonthTransactions = transactions.filter(t => {
+      const d = new Date(t.date);
+      // Fix timezone parsing issue by using simple string split if needed, 
+      // but assuming standard ISO date for simplicity:
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+
+  const monthRealizedIncome = currentMonthTransactions
+    .filter(t => t.type === TransactionType.CREDIT)
+    .reduce((acc, curr) => acc + curr.value, 0);
+
+  const monthRealizedExpense = currentMonthTransactions
+    .filter(t => t.type === TransactionType.DEBIT)
+    .reduce((acc, curr) => acc + curr.value, 0);
+
+  // 3. Calculate Current Month Forecast
+  const currentMonthForecasts = forecasts.filter(f => {
+      const d = new Date(f.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear && !f.realized;
+  });
+
+  const monthForecastIncome = currentMonthForecasts
+    .filter(f => f.type === TransactionType.CREDIT)
+    .reduce((acc, curr) => acc + curr.value, 0);
+
+  const monthForecastExpense = currentMonthForecasts
+    .filter(f => f.type === TransactionType.DEBIT)
+    .reduce((acc, curr) => acc + curr.value, 0);
+
 
   const reconciledCount = transactions.filter(t => t.reconciled).length;
   const pendingCount = transactions.filter(t => !t.reconciled).length;
 
-  // Prepare Chart Data (Last 7 days simplified)
-  const chartData = transactions.slice(0, 10).reverse().map(t => ({
+  // Prepare Chart Data (Last 15 days for better visual)
+  const chartData = transactions.slice(0, 15).reverse().map(t => ({
     name: t.date.split('-').slice(1).join('/'),
     amount: t.type === TransactionType.CREDIT ? t.value : -t.value,
-    balance: 0 // Would calculate cumulative in real app
+    balance: 0 
   }));
 
-  // Simple cumulative calculation for chart demo
-  let runningBalance = 0;
+  // Cumulative balance calculation for chart
+  let runningBalance = totalBalance - (chartData.reduce((acc, curr) => acc + curr.amount, 0)); // Start from back-calculated balance
   const processedChartData = chartData.map(d => {
     runningBalance += d.amount;
     return { ...d, balance: runningBalance };
@@ -41,120 +78,152 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks }) => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500">Visão geral da sua saúde financeira</p>
+        <p className="text-gray-500 font-medium">{MONTHS[currentMonth]} de {currentYear}</p>
       </div>
 
       {/* Cards de Resumo */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg shadow-blue-200">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-white/20 rounded-lg">
-              <Wallet className="w-6 h-6 text-white" />
+        {/* Card Saldo */}
+        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg shadow-blue-200 flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-start mb-4">
+                <div className="p-2 bg-white/20 rounded-lg">
+                <Wallet className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-xs font-medium bg-white/20 px-2 py-1 rounded-full">Saldo Atual</span>
             </div>
-            <span className="text-xs font-medium bg-white/20 px-2 py-1 rounded-full">Total Geral</span>
+            <div className="text-3xl font-bold mb-1">
+                R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </div>
           </div>
-          <div className="text-3xl font-bold mb-1">
-            R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </div>
-          <div className="text-blue-100 text-sm">Saldo Consolidado</div>
+          <div className="text-blue-100 text-sm mt-2">Disponível em contas</div>
         </div>
 
-        <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-emerald-50 rounded-lg">
-              <ArrowUpCircle className="w-6 h-6 text-emerald-600" />
+        {/* Card Receitas */}
+        <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-start mb-2">
+                <div className="p-2 bg-emerald-50 rounded-lg">
+                <ArrowUpCircle className="w-6 h-6 text-emerald-600" />
+                </div>
+                <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">Receitas</span>
             </div>
-            <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+ Entradas</span>
+            <div className="text-2xl font-bold text-gray-900">
+                R$ {monthRealizedIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </div>
+            <div className="text-gray-400 text-xs mb-4">Lançadas este mês</div>
           </div>
-          <div className="text-2xl font-bold text-gray-900 mb-1">
-            R$ {totalIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          
+          <div className="pt-3 border-t border-gray-50 flex items-center justify-between text-sm">
+             <span className="text-gray-500 flex items-center gap-1"><TrendingUp size={14}/> Previsto:</span>
+             <span className="font-medium text-emerald-600">+ R$ {monthForecastIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
           </div>
-          <div className="text-gray-400 text-sm">Receitas do período</div>
         </div>
 
-        <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-rose-50 rounded-lg">
-              <ArrowDownCircle className="w-6 h-6 text-rose-600" />
+        {/* Card Despesas */}
+        <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-start mb-2">
+                <div className="p-2 bg-rose-50 rounded-lg">
+                <ArrowDownCircle className="w-6 h-6 text-rose-600" />
+                </div>
+                <span className="text-xs font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded-full">Despesas</span>
             </div>
-            <span className="text-xs font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded-full">- Saídas</span>
+            <div className="text-2xl font-bold text-gray-900">
+                R$ {monthRealizedExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </div>
+            <div className="text-gray-400 text-xs mb-4">Lançadas este mês</div>
           </div>
-          <div className="text-2xl font-bold text-gray-900 mb-1">
-            R$ {totalExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+
+          <div className="pt-3 border-t border-gray-50 flex items-center justify-between text-sm">
+             <span className="text-gray-500 flex items-center gap-1"><TrendingDown size={14}/> Previsto:</span>
+             <span className="font-medium text-rose-600">+ R$ {monthForecastExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
           </div>
-          <div className="text-gray-400 text-sm">Despesas do período</div>
         </div>
       </div>
 
-      {/* Chart & Stats */}
+      {/* Main Grid: Saldos (Left Big) & Charts (Right Small) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Column 1 (Big): Bank Balances - Now here instead of chart */}
         <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <h3 className="font-semibold text-gray-800 mb-6">Fluxo de Caixa (Últimos dias)</h3>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={processedChartData}>
-                <defs>
-                  <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#94a3b8'}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#94a3b8'}} />
-                <Tooltip 
-                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="balance" 
-                  stroke="#0ea5e9" 
-                  strokeWidth={2}
-                  fillOpacity={1} 
-                  fill="url(#colorBalance)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex flex-col">
-          <h3 className="font-semibold text-gray-800 mb-4">Status dos Lançamentos</h3>
-          
-          <div className="space-y-4 flex-1">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                <span className="text-sm font-medium text-gray-600">Conciliados</span>
-              </div>
-              <span className="font-bold text-gray-900">{reconciledCount}</span>
-            </div>
-            
-            <div className="flex items-center justify-between p-4 bg-amber-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-500" />
-                <span className="text-sm font-medium text-gray-600">Pendentes</span>
-              </div>
-              <span className="font-bold text-gray-900">{pendingCount}</span>
-            </div>
-
-            <div className="mt-auto pt-4 border-t border-gray-100">
-                <h4 className="text-xs font-semibold text-gray-400 uppercase mb-3">Saldos por Banco</h4>
+             <h3 className="font-semibold text-gray-800 mb-6">Saldos por Banco</h3>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {banks.map(bank => (
-                    <div key={bank.id} className="flex items-center justify-between mb-2 last:mb-0">
-                        <div className="flex items-center gap-2">
-                            <img src={bank.logo} alt={bank.name} className="w-5 h-5 rounded-full object-cover" />
-                            <span className="text-sm text-gray-600">{bank.name}</span>
+                    <div key={bank.id} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-white hover:shadow-md transition-all">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-white p-1.5 border border-gray-200 flex items-center justify-center">
+                                <img src={bank.logo} alt={bank.name} className="max-w-full max-h-full object-contain" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-gray-900 text-sm">{bank.name}</h4>
+                                <p className="text-xs text-gray-500">{bank.nickname || 'Conta Corrente'}</p>
+                            </div>
                         </div>
-                        {/* Mocking individual balances roughly */}
-                        <span className="text-sm font-medium text-gray-900">
-                            R$ {(totalBalance / banks.length).toLocaleString('pt-BR', {maximumFractionDigits:0})}
+                        <span className={`font-bold ${bank.balance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            R$ {bank.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </span>
                     </div>
                 ))}
-            </div>
-          </div>
+             </div>
         </div>
+
+        {/* Column 2 (Small): Chart & Status - Moved to right side */}
+        <div className="space-y-6">
+             {/* Small Chart */}
+             <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+                <h3 className="font-semibold text-gray-800 mb-4 text-sm">Evolução do Saldo</h3>
+                <div className="h-40 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={processedChartData}>
+                        <defs>
+                        <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.1}/>
+                            <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
+                        </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis hide dataKey="name" />
+                        <YAxis hide domain={['auto', 'auto']} />
+                        <Tooltip 
+                        contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px'}}
+                        />
+                        <Area 
+                        type="monotone" 
+                        dataKey="balance" 
+                        stroke="#0ea5e9" 
+                        strokeWidth={2}
+                        fillOpacity={1} 
+                        fill="url(#colorBalance)" 
+                        />
+                    </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+             </div>
+
+             {/* Status */}
+             <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+                <h3 className="font-semibold text-gray-800 mb-4 text-sm">Status Geral</h3>
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            <span className="text-sm font-medium text-gray-600">Conciliados</span>
+                        </div>
+                        <span className="font-bold text-gray-900">{reconciledCount}</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-500" />
+                            <span className="text-sm font-medium text-gray-600">Pendentes</span>
+                        </div>
+                        <span className="font-bold text-gray-900">{pendingCount}</span>
+                    </div>
+                </div>
+             </div>
+        </div>
+
       </div>
     </div>
   );

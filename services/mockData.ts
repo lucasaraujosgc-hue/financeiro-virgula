@@ -1,7 +1,5 @@
 import { Bank, Category, CategoryType, Transaction, TransactionType, Forecast } from '../types';
 
-// Initial Mock Data with Local Images
-// Todos iniciam como false para o usuário ativar manualmente
 export const INITIAL_BANKS: Bank[] = [
   { id: 1, name: 'Nubank', accountNumber: '1234-5', nickname: 'Principal', logo: '/nubank.jpg', active: false, balance: 0 },
   { id: 2, name: 'Itaú', accountNumber: '9876-0', nickname: 'Reserva', logo: '/itau.png', active: false, balance: 0 },
@@ -25,38 +23,38 @@ export const INITIAL_BANKS: Bank[] = [
 ];
 
 const INCOME_CATEGORIES = [
-  'Vendas de Mercadorias',
-  'Prestação de Serviços',
-  'Receita de Aluguel',
-  'Comissões Recebidas',
-  'Receita Financeira (juros, rendimentos, aplicações)',
-  'Devoluções de Despesas',
-  'Reembolsos de Clientes',
-  'Transferências Internas (entre contas)',
-  'Aportes de Sócios / Investimentos',
-  'Outras Receitas Operacionais',
-  'Receitas Não Operacionais (ex: venda de ativo imobilizado)'
+    'Vendas de Mercadorias',
+    'Prestação de Serviços',
+    'Receita de Aluguel',
+    'Comissões Recebidas',
+    'Receita Financeira (juros, rendimentos, aplicações)',
+    'Devoluções de Despesas',
+    'Reembolsos de Clientes',
+    'Transferências Internas (entre contas)',
+    'Aportes de Sócios / Investimentos',
+    'Outras Receitas Operacionais',
+    'Receitas Não Operacionais (ex: venda de ativo imobilizado)'
 ];
 
 const EXPENSE_CATEGORIES = [
-  'Compra de Mercadorias / Matéria-Prima',
-  'Fretes e Transportes',
-  'Despesas com Pessoal (salários, pró-labore, encargos)',
-  'Serviços de Terceiros (contabilidade, marketing, consultorias)',
-  'Despesas Administrativas (papelaria, materiais de escritório)',
-  'Despesas Comerciais (comissões, propaganda, brindes)',
-  'Energia Elétrica / Água / Telefone / Internet',
-  'Aluguel e Condomínio',
-  'Manutenção e Limpeza',
-  'Combustível e Deslocamento',
-  'Seguros (veicular, empresarial, de vida, etc.)',
-  'Tarifas Bancárias e Juros',
-  'Impostos e Taxas (ISS, ICMS, DAS, etc.)',
-  'Despesas Financeiras (juros sobre empréstimos, multas, IOF)',
-  'Transferências Internas (entre contas)',
-  'Distribuição de Lucros / Retirada de Sócios',
-  'Outras Despesas Operacionais',
-  'Despesas Não Operacionais (venda de bens, baixas contábeis)'
+    'Compra de Mercadorias / Matéria-Prima',
+    'Fretes e Transportes',
+    'Despesas com Pessoal (salários, pró-labore, encargos)',
+    'Serviços de Terceiros (contabilidade, marketing, consultorias)',
+    'Despesas Administrativas (papelaria, materiais de escritório)',
+    'Despesas Comerciais (comissões, propaganda, brindes)',
+    'Energia Elétrica / Água / Telefone / Internet',
+    'Aluguel e Condomínio',
+    'Manutenção e Limpeza',
+    'Combustível e Deslocamento',
+    'Seguros (veicular, empresarial, de vida, etc.)',
+    'Tarifas Bancárias e Juros',
+    'Impostos e Taxas (ISS, ICMS, DAS, etc.)',
+    'Despesas Financeiras (juros sobre empréstimos, multas, IOF)',
+    'Transferências Internas (entre contas)',
+    'Distribuição de Lucros / Retirada de Sócios',
+    'Outras Despesas Operacionais',
+    'Despesas Não Operacionais (venda de bens, baixas contábeis)'
 ];
 
 let catIdCounter = 1;
@@ -74,7 +72,6 @@ export const INITIAL_CATEGORIES: Category[] = [
   }))
 ];
 
-// Sem transações iniciais para forçar o fluxo limpo
 export const INITIAL_TRANSACTIONS: Transaction[] = [];
 
 export const INITIAL_FORECASTS: Forecast[] = [
