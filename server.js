@@ -250,6 +250,18 @@ app.get('/api/banks', (req, res) => {
     });
 });
 
+app.post('/api/banks', (req, res) => {
+    const { name, accountNumber, nickname, logo } = req.body;
+    db.run(
+        `INSERT INTO banks (name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, 1, 0)`,
+        [name, accountNumber, nickname, logo],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ id: this.lastID, name, accountNumber, nickname, logo, active: true, balance: 0 });
+        }
+    );
+});
+
 app.put('/api/banks/:id', (req, res) => {
     const { nickname, accountNumber, active } = req.body;
     db.run(
@@ -260,6 +272,13 @@ app.put('/api/banks/:id', (req, res) => {
             res.json({ success: true });
         }
     );
+});
+
+app.delete('/api/banks/:id', (req, res) => {
+    db.run(`DELETE FROM banks WHERE id = ?`, [req.params.id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ deleted: this.changes });
+    });
 });
 
 // CATEGORIES

@@ -195,6 +195,33 @@ function App() {
       }
   };
 
+  const handleAddBank = async (newBank: Omit<Bank, 'id' | 'balance' | 'active'>) => {
+      try {
+          const res = await fetch('/api/banks', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify(newBank)
+          });
+          if (res.ok) {
+              const savedBank = await res.json();
+              setBanks(prev => [...prev, savedBank]);
+          }
+      } catch (e) {
+          alert("Erro ao criar conta bancária");
+      }
+  };
+
+  const handleDeleteBank = async (id: number) => {
+      try {
+          const res = await fetch(`/api/banks/${id}`, { method: 'DELETE' });
+          if(res.ok) {
+              setBanks(prev => prev.filter(b => b.id !== id));
+          }
+      } catch (e) {
+          alert("Erro ao excluir banco");
+      }
+  };
+
   const handleLogout = () => {
       if (confirm('Deseja realmente sair?')) {
           setIsAuthenticated(false);
@@ -308,7 +335,14 @@ function App() {
       case 'import':
         return <OFXImports banks={banks.filter(b => b.active)} onTransactionsImported={fetchTransactions} />;
       case 'banks':
-        return <BankList banks={banks} onUpdateBank={handleUpdateBank} />;
+        return (
+            <BankList 
+                banks={banks} 
+                onUpdateBank={handleUpdateBank} 
+                onAddBank={handleAddBank}
+                onDeleteBank={handleDeleteBank}
+            />
+        );
       case 'categories':
         return (
             <Categories 

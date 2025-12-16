@@ -15,7 +15,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts })
   const currentYear = currentDate.getFullYear();
   const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-  // 1. Calculate General Total Balance (All Time)
+  // 1. Calculate General Total Balance (All Time) - STRICTLY FROM TRANSACTIONS (Lançamentos)
   const allTimeIncome = transactions
     .filter(t => t.type === TransactionType.CREDIT)
     .reduce((acc, curr) => acc + curr.value, 0);
@@ -29,8 +29,6 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts })
   // 2. Calculate Current Month Realized
   const currentMonthTransactions = transactions.filter(t => {
       const d = new Date(t.date);
-      // Fix timezone parsing issue by using simple string split if needed, 
-      // but assuming standard ISO date for simplicity:
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   });
 
@@ -68,7 +66,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts })
   }));
 
   // Cumulative balance calculation for chart
-  let runningBalance = totalBalance - (chartData.reduce((acc, curr) => acc + curr.amount, 0)); // Start from back-calculated balance
+  let runningBalance = totalBalance - (chartData.reduce((acc, curr) => acc + curr.amount, 0)); 
   const processedChartData = chartData.map(d => {
     runningBalance += d.amount;
     return { ...d, balance: runningBalance };
@@ -81,63 +79,61 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts })
         <p className="text-gray-500 font-medium">{MONTHS[currentMonth]} de {currentYear}</p>
       </div>
 
-      {/* Cards de Resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Cards de Resumo - Compact Version */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Card Saldo */}
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg shadow-blue-200 flex flex-col justify-between">
+        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-4 text-white shadow-lg shadow-blue-200 flex flex-col justify-between h-32">
           <div>
-            <div className="flex justify-between items-start mb-4">
-                <div className="p-2 bg-white/20 rounded-lg">
-                <Wallet className="w-6 h-6 text-white" />
+            <div className="flex justify-between items-start mb-2">
+                <div className="p-1.5 bg-white/20 rounded-lg">
+                   <Wallet className="w-4 h-4 text-white" />
                 </div>
-                <span className="text-xs font-medium bg-white/20 px-2 py-1 rounded-full">Saldo Atual</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold bg-white/20 px-2 py-0.5 rounded-full">Saldo Atual</span>
             </div>
-            <div className="text-3xl font-bold mb-1">
+            <div className="text-2xl font-bold mb-0.5">
                 R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </div>
           </div>
-          <div className="text-blue-100 text-sm mt-2">Disponível em contas</div>
+          <div className="text-blue-100 text-xs">Apenas lançamentos efetivados</div>
         </div>
 
         {/* Card Receitas */}
-        <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between">
+        <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex flex-col justify-between h-32">
           <div>
-            <div className="flex justify-between items-start mb-2">
-                <div className="p-2 bg-emerald-50 rounded-lg">
-                <ArrowUpCircle className="w-6 h-6 text-emerald-600" />
+            <div className="flex justify-between items-start mb-1">
+                <div className="p-1.5 bg-emerald-50 rounded-lg">
+                   <ArrowUpCircle className="w-4 h-4 text-emerald-600" />
                 </div>
-                <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">Receitas</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Receitas</span>
             </div>
-            <div className="text-2xl font-bold text-gray-900">
+            <div className="text-xl font-bold text-gray-900">
                 R$ {monthRealizedIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </div>
-            <div className="text-gray-400 text-xs mb-4">Lançadas este mês</div>
           </div>
           
-          <div className="pt-3 border-t border-gray-50 flex items-center justify-between text-sm">
-             <span className="text-gray-500 flex items-center gap-1"><TrendingUp size={14}/> Previsto:</span>
-             <span className="font-medium text-emerald-600">+ R$ {monthForecastIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          <div className="pt-2 border-t border-gray-50 flex items-center justify-between text-xs">
+             <span className="text-gray-500 flex items-center gap-1"><TrendingUp size={12}/> Previsto:</span>
+             <span className="font-bold text-emerald-600">+ {monthForecastIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
           </div>
         </div>
 
         {/* Card Despesas */}
-        <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between">
+        <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex flex-col justify-between h-32">
           <div>
-            <div className="flex justify-between items-start mb-2">
-                <div className="p-2 bg-rose-50 rounded-lg">
-                <ArrowDownCircle className="w-6 h-6 text-rose-600" />
+            <div className="flex justify-between items-start mb-1">
+                <div className="p-1.5 bg-rose-50 rounded-lg">
+                   <ArrowDownCircle className="w-4 h-4 text-rose-600" />
                 </div>
-                <span className="text-xs font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded-full">Despesas</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">Despesas</span>
             </div>
-            <div className="text-2xl font-bold text-gray-900">
+            <div className="text-xl font-bold text-gray-900">
                 R$ {monthRealizedExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </div>
-            <div className="text-gray-400 text-xs mb-4">Lançadas este mês</div>
           </div>
 
-          <div className="pt-3 border-t border-gray-50 flex items-center justify-between text-sm">
-             <span className="text-gray-500 flex items-center gap-1"><TrendingDown size={14}/> Previsto:</span>
-             <span className="font-medium text-rose-600">+ R$ {monthForecastExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          <div className="pt-2 border-t border-gray-50 flex items-center justify-between text-xs">
+             <span className="text-gray-500 flex items-center gap-1"><TrendingDown size={12}/> Previsto:</span>
+             <span className="font-bold text-rose-600">+ {monthForecastExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
           </div>
         </div>
       </div>
@@ -145,7 +141,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts })
       {/* Main Grid: Saldos (Left Big) & Charts (Right Small) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Column 1 (Big): Bank Balances - Now here instead of chart */}
+        {/* Column 1 (Big): Bank Balances */}
         <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
              <h3 className="font-semibold text-gray-800 mb-6">Saldos por Banco</h3>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -157,7 +153,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts })
                             </div>
                             <div>
                                 <h4 className="font-bold text-gray-900 text-sm">{bank.name}</h4>
-                                <p className="text-xs text-gray-500">{bank.nickname || 'Conta Corrente'}</p>
+                                <p className="text-xs text-gray-500 max-w-[120px] truncate" title={bank.nickname}>{bank.nickname || 'Conta Corrente'}</p>
                             </div>
                         </div>
                         <span className={`font-bold ${bank.balance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -168,7 +164,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts })
              </div>
         </div>
 
-        {/* Column 2 (Small): Chart & Status - Moved to right side */}
+        {/* Column 2 (Small): Chart & Status */}
         <div className="space-y-6">
              {/* Small Chart */}
              <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
