@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, TransactionType, Bank, Category, CategoryType } from '../types';
-import { Search, Filter, Plus, Trash2, Check, X } from 'lucide-react';
+import { Search, Filter, Plus, Trash2, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -14,9 +14,15 @@ interface TransactionsProps {
 const Transactions: React.FC<TransactionsProps> = ({ 
   transactions, banks, categories, onAddTransaction, onDeleteTransaction, onReconcile 
 }) => {
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11
+  const [selectedBankId, setSelectedBankId] = useState<number | 'all'>('all');
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   // New Transaction Form State
   const [formData, setFormData] = useState({
@@ -43,11 +49,25 @@ const Transactions: React.FC<TransactionsProps> = ({
     }
   }, [formData.type, isModalOpen, categories]);
 
+  // Filter Transactions based on Time and Bank
   const filteredTransactions = transactions.filter(t => {
+    const d = new Date(t.date);
+    const [y, m] = t.date.split('-');
+    const yearMatch = parseInt(y) === selectedYear;
+    const monthMatch = (parseInt(m) - 1) === selectedMonth;
+    const bankMatch = selectedBankId === 'all' || t.bankId === selectedBankId;
+    
+    // Additional Search/Type filters
     const matchesSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === 'all' || t.type === typeFilter;
-    return matchesSearch && matchesType;
+
+    return yearMatch && monthMatch && bankMatch && matchesSearch && matchesType;
   });
+
+  // Calculate Totals for the selected period
+  const totalIncome = filteredTransactions.filter(t => t.type === TransactionType.CREDIT).reduce((a, b) => a + b.value, 0);
+  const totalExpense = filteredTransactions.filter(t => t.type === TransactionType.DEBIT).reduce((a, b) => a + b.value, 0);
+  const periodBalance = totalIncome - totalExpense;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,37 +104,89 @@ const Transactions: React.FC<TransactionsProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Lançamentos</h1>
-          <p className="text-gray-500">Gerencie todas as suas entradas e saídas</p>
-        </div>
-        <div className="flex gap-2">
-            <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm shadow-blue-200"
-            >
-            <Plus size={18} />
-            Novo Lançamento
-            </button>
-        </div>
+       <div>
+        <h1 className="text-2xl font-bold text-gray-900">
+            Lançamentos - {MONTHS[selectedMonth]}/{selectedYear}
+        </h1>
+       </div>
+
+      {/* Filters Header (Matches Forecasts) */}
+      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-end md:items-center justify-between gap-4">
+           <div className="flex gap-4 w-full md:w-auto">
+               <div>
+                   <label className="text-xs font-semibold text-gray-500 block mb-1">Selecionar Ano</label>
+                   <div className="flex bg-gray-100 rounded-lg p-1">
+                       <button onClick={() => setSelectedYear(selectedYear - 1)} className="px-3 py-1 hover:bg-white rounded-md text-sm"><ChevronLeft size={16}/></button>
+                       <span className="px-4 py-1 font-semibold text-gray-700">{selectedYear}</span>
+                       <button onClick={() => setSelectedYear(selectedYear + 1)} className="px-3 py-1 hover:bg-white rounded-md text-sm"><ChevronRight size={16}/></button>
+                   </div>
+               </div>
+               <div className="flex-1">
+                   <label className="text-xs font-semibold text-gray-500 block mb-1">Filtrar por Banco</label>
+                   <select 
+                     className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm outline-none"
+                     value={selectedBankId}
+                     onChange={e => setSelectedBankId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                   >
+                       <option value="all">Todos os Bancos</option>
+                       {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                   </select>
+               </div>
+           </div>
+           
+           <button 
+             onClick={() => setIsModalOpen(true)}
+             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 shadow-sm shadow-blue-200"
+           >
+               <Plus size={18}/> Novo Lançamento
+           </button>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
+       {/* Month Navigation & Summary (Matches Forecasts) */}
+       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+           <div className="flex flex-col lg:flex-row">
+               {/* Month Carousel */}
+               <div className="lg:w-1/3 border-b lg:border-b-0 lg:border-r border-gray-100 p-4 flex items-center justify-between">
+                    <button onClick={() => setSelectedMonth(prev => prev === 0 ? 11 : prev - 1)} className="p-2 hover:bg-gray-100 rounded-full text-blue-600"><ChevronLeft/></button>
+                    <div className="font-bold text-xl text-blue-700">{MONTHS[selectedMonth]}</div>
+                    <button onClick={() => setSelectedMonth(prev => prev === 11 ? 0 : prev + 1)} className="p-2 hover:bg-gray-100 rounded-full text-blue-600"><ChevronRight/></button>
+               </div>
+               
+               {/* Summary Cards */}
+               <div className="flex-1 grid grid-cols-3 divide-x divide-gray-100">
+                    <div className="p-4 text-center">
+                        <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Receitas</div>
+                        <div className="text-xl font-bold text-emerald-600">R$ {totalIncome.toFixed(2)}</div>
+                    </div>
+                    <div className="p-4 text-center">
+                        <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Despesas</div>
+                        <div className="text-xl font-bold text-rose-600">R$ {totalExpense.toFixed(2)}</div>
+                    </div>
+                    <div className="p-4 text-center bg-gray-50/50">
+                        <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Saldo do Mês</div>
+                        <div className={`text-xl font-bold ${periodBalance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            R$ {periodBalance.toFixed(2)}
+                        </div>
+                    </div>
+               </div>
+           </div>
+       </div>
+
+      {/* Internal Search Filter (Kept from original Transactions but styled simpler) */}
+      <div className="bg-white px-4 py-2 border border-gray-200 rounded-lg shadow-sm flex items-center gap-4">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"
-            placeholder="Buscar por descrição..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 rounded-lg transition-all outline-none"
+            placeholder="Buscar por descrição neste mês..."
+            className="w-full pl-10 pr-4 py-2 bg-transparent border-none outline-none text-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="flex gap-2">
-          <select 
-            className="px-4 py-2 bg-gray-50 border-transparent rounded-lg focus:bg-white focus:border-blue-500 outline-none cursor-pointer"
+        <div className="h-6 w-px bg-gray-200"></div>
+        <select 
+            className="bg-transparent text-sm text-gray-600 outline-none"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
           >
@@ -122,14 +194,16 @@ const Transactions: React.FC<TransactionsProps> = ({
             <option value={TransactionType.CREDIT}>Receitas</option>
             <option value={TransactionType.DEBIT}>Despesas</option>
           </select>
-          <button className="p-2 bg-gray-50 text-gray-500 rounded-lg hover:bg-gray-100">
-            <Filter size={20} />
-          </button>
-        </div>
       </div>
 
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+            <h3 className="font-semibold text-gray-800">Lançamentos Detalhados</h3>
+            <span className="text-xs bg-white border border-gray-200 px-2 py-1 rounded text-gray-500">
+                {filteredTransactions.length} registros
+            </span>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200">
@@ -147,7 +221,7 @@ const Transactions: React.FC<TransactionsProps> = ({
               {filteredTransactions.length === 0 ? (
                   <tr>
                       <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
-                          Nenhum lançamento encontrado
+                          Nenhum lançamento encontrado neste período
                       </td>
                   </tr>
               ) : (
@@ -166,7 +240,10 @@ const Transactions: React.FC<TransactionsProps> = ({
                             {category?.name || 'Sem Categoria'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-gray-500">{bank?.name}</td>
+                        <td className="px-6 py-4 text-gray-500 flex items-center gap-2">
+                            {bank && <img src={bank.logo} className="w-5 h-5 rounded-full object-contain"/>}
+                            {bank?.name}
+                        </td>
                         <td className={`px-6 py-4 text-right font-medium ${t.type === TransactionType.CREDIT ? 'text-emerald-600' : 'text-rose-600'}`}>
                           {t.type === TransactionType.DEBIT ? '- ' : '+ '}
                           R$ {t.value.toFixed(2)}

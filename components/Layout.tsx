@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { LayoutDashboard, Wallet, Receipt, PieChart, Landmark, LogOut, Menu, X, ArrowUpRight, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, Wallet, Receipt, PieChart, Landmark, LogOut, Menu, X, ArrowUpRight, FileSpreadsheet, Tags, BarChart3, Scale, Calculator } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
@@ -10,15 +10,6 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLogout }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'transactions', label: 'Lançamentos', icon: Receipt },
-    { id: 'import', label: 'Importações OFX', icon: FileSpreadsheet },
-    { id: 'banks', label: 'Bancos', icon: Landmark },
-    { id: 'forecasts', label: 'Previsões', icon: ArrowUpRight },
-    { id: 'reports', label: 'Relatórios', icon: PieChart },
-  ];
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -38,36 +29,126 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
       `}>
         <div className="h-full flex flex-col">
           <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">S</span>
+            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" onError={(e) => {
+                // Fallback if logo.png is missing or broken
+                (e.target as HTMLImageElement).style.display = 'none';
+                (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+            }}/>
+            <div className="hidden w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+               <span className="text-white font-bold text-lg">S</span>
             </div>
             <span className="font-bold text-xl text-gray-800 tracking-tight">Sistema Fin.</span>
           </div>
 
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 px-2">Menu Principal</div>
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
+          <nav className="flex-1 p-4 space-y-6 overflow-y-auto custom-scroll">
+            
+            {/* Main Action Group */}
+            <div className="space-y-1">
                 <button
-                  key={item.id}
-                  onClick={() => {
-                    onTabChange(item.id);
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className={`
-                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                    ${isActive 
-                      ? 'bg-blue-50 text-blue-700' 
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                  onClick={() => { onTabChange('forecasts'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-bold transition-all shadow-sm
+                    ${activeTab === 'forecasts' 
+                      ? 'bg-blue-600 text-white shadow-blue-200' 
+                      : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}
                   `}
                 >
-                  <Icon size={18} className={isActive ? 'text-blue-600' : 'text-gray-400'} />
-                  {item.label}
+                  <ArrowUpRight size={20} />
+                  Previsões
                 </button>
-              );
-            })}
+
+                <button
+                  onClick={() => { onTabChange('transactions'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                    ${activeTab === 'transactions' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                  `}
+                >
+                  <Receipt size={18} />
+                  Lançamentos
+                </button>
+
+                <button
+                  onClick={() => { onTabChange('import'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                    ${activeTab === 'import' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                  `}
+                >
+                  <FileSpreadsheet size={18} />
+                  Importar Extrato
+                </button>
+            </div>
+
+            {/* Cadastros */}
+            <div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">Cadastros</div>
+                <div className="space-y-1">
+                    <button
+                        onClick={() => { onTabChange('banks'); setIsMobileMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                            ${activeTab === 'banks' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                        `}
+                    >
+                        <Landmark size={18} />
+                        Bancos
+                    </button>
+                    <button
+                        onClick={() => { onTabChange('categories'); setIsMobileMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                            ${activeTab === 'categories' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                        `}
+                    >
+                        <Tags size={18} />
+                        Categorias
+                    </button>
+                </div>
+            </div>
+
+            {/* Relatórios */}
+            <div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">Relatórios</div>
+                <div className="space-y-1">
+                    <button
+                        onClick={() => { onTabChange('reports'); setIsMobileMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                            ${activeTab === 'reports' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                        `}
+                    >
+                        <Calculator size={18} />
+                        Fluxo de Caixa
+                    </button>
+                    <button
+                        onClick={() => { onTabChange('reports'); setIsMobileMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                           text-gray-600 hover:bg-gray-50 hover:text-gray-900
+                        `}
+                    >
+                        <Scale size={18} />
+                        DRE Simplificado
+                    </button>
+                    <button
+                        onClick={() => { onTabChange('reports'); setIsMobileMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                           text-gray-600 hover:bg-gray-50 hover:text-gray-900
+                        `}
+                    >
+                        <PieChart size={18} />
+                        Análises e Indicadores
+                    </button>
+                </div>
+            </div>
+
+            {/* Legacy Dashboard Link (Optional, kept at bottom or removed based on "Image" strictness. Assuming Dashboard is the "Home") */}
+            <div className="pt-4 border-t border-gray-100">
+                 <button
+                  onClick={() => { onTabChange('dashboard'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                    ${activeTab === 'dashboard' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                  `}
+                >
+                  <LayoutDashboard size={18} />
+                  Visão Geral
+                </button>
+            </div>
+
           </nav>
 
           <div className="p-4 border-t border-gray-100">

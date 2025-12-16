@@ -236,6 +236,21 @@ function App() {
         return <OFXImports banks={banks.filter(b => b.active)} onTransactionsImported={fetchTransactions} />;
       case 'banks':
         return <BankList banks={banks} onUpdateBank={handleUpdateBank} />;
+      case 'categories':
+        // Placeholder for Categories if not fully implemented yet
+        return (
+             <div className="bg-white p-8 rounded-xl border border-gray-200 text-center">
+                 <h2 className="text-2xl font-bold text-gray-800">Gerenciamento de Categorias</h2>
+                 <p className="text-gray-500 mt-2">Funcionalidade em desenvolvimento.</p>
+                 <div className="mt-6 flex flex-wrap gap-2 justify-center">
+                     {categories.map(c => (
+                         <span key={c.id} className="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700">
+                             {c.name}
+                         </span>
+                     ))}
+                 </div>
+             </div>
+        );
       case 'reports':
         return <Reports transactions={transactions} categories={categories} />;
       case 'forecasts':
