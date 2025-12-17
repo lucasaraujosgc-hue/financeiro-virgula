@@ -24,6 +24,7 @@ const Transactions: React.FC<TransactionsProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<number | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -80,8 +81,11 @@ const Transactions: React.FC<TransactionsProps> = ({
     const matchesSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === 'all' || t.type === typeFilter;
     const matchesCategory = categoryFilter === 'all' || t.categoryId === categoryFilter;
+    
+    const matchesStatus = statusFilter === 'all' || 
+        (statusFilter === 'reconciled' ? t.reconciled : !t.reconciled);
 
-    return yearMatch && monthMatch && bankMatch && matchesSearch && matchesType && matchesCategory;
+    return yearMatch && monthMatch && bankMatch && matchesSearch && matchesType && matchesCategory && matchesStatus;
   });
 
   const totalIncome = filteredTransactions.filter(t => t.type === TransactionType.CREDIT).reduce((a, b) => a + b.value, 0);
@@ -269,12 +273,12 @@ const Transactions: React.FC<TransactionsProps> = ({
        )}
 
       {/* Internal Search */}
-      <div className="bg-surface px-4 py-2 border border-slate-800 rounded-lg shadow-sm flex items-center gap-4">
-        <div className="flex-1 relative">
+      <div className="bg-surface px-4 py-2 border border-slate-800 rounded-lg shadow-sm flex items-center gap-4 overflow-x-auto custom-scroll">
+        <div className="flex-1 relative min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
           <input
             type="text"
-            placeholder="Buscar por descrição neste mês..."
+            placeholder="Buscar por descrição..."
             className="w-full pl-10 pr-4 py-2 bg-transparent border-none outline-none text-sm text-white placeholder-slate-600"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -284,19 +288,6 @@ const Transactions: React.FC<TransactionsProps> = ({
         <div className="h-6 w-px bg-slate-700"></div>
 
         <select 
-            className="bg-transparent text-sm text-slate-400 outline-none max-w-[200px]"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-        >
-            <option value="all">Todas as categorias</option>
-            {categories.sort((a, b) => a.name.localeCompare(b.name)).map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-        </select>
-
-        <div className="h-6 w-px bg-slate-700"></div>
-        
-        <select 
             className="bg-transparent text-sm text-slate-400 outline-none"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
@@ -304,7 +295,39 @@ const Transactions: React.FC<TransactionsProps> = ({
             <option value="all">Todos os tipos</option>
             <option value={TransactionType.CREDIT}>Receitas</option>
             <option value={TransactionType.DEBIT}>Despesas</option>
-          </select>
+        </select>
+
+        <div className="h-6 w-px bg-slate-700"></div>
+
+        <select 
+            className="bg-transparent text-sm text-slate-400 outline-none max-w-[200px]"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+        >
+            <option value="all">Todas as categorias</option>
+            <optgroup label="Receitas">
+                {categories.filter(c => c.type === CategoryType.INCOME).sort((a,b) => a.name.localeCompare(b.name)).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+            </optgroup>
+            <optgroup label="Despesas">
+                {categories.filter(c => c.type === CategoryType.EXPENSE).sort((a,b) => a.name.localeCompare(b.name)).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+            </optgroup>
+        </select>
+
+        <div className="h-6 w-px bg-slate-700"></div>
+        
+        <select 
+            className="bg-transparent text-sm text-slate-400 outline-none"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+        >
+            <option value="all">Todos os status</option>
+            <option value="reconciled">Conciliado</option>
+            <option value="pending">Pendente</option>
+        </select>
       </div>
 
       {/* Table */}
