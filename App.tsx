@@ -163,6 +163,27 @@ function App() {
     }
   };
 
+  const handleEditTransaction = async (id: number, updatedTx: Omit<Transaction, 'id'>) => {
+      try {
+          const res = await fetch(`/api/transactions/${id}`, {
+              method: 'PUT',
+              headers: getHeaders(),
+              body: JSON.stringify(updatedTx)
+          });
+          
+          if (res.ok) {
+              setTransactions(prev => prev.map(t => 
+                  t.id === id ? { ...updatedTx, id, ofxImportId: t.ofxImportId } : t
+              ));
+          } else {
+              throw new Error("Erro ao atualizar");
+          }
+      } catch (error) {
+          alert("Erro ao editar transação");
+          console.error(error);
+      }
+  };
+
   const handleDeleteTransaction = async (id: number) => {
     if (confirm('Tem certeza que deseja excluir este lançamento?')) {
         try {
@@ -358,6 +379,7 @@ function App() {
             banks={banks.filter(b => b.active)}
             categories={categories}
             onAddTransaction={handleAddTransaction}
+            onEditTransaction={handleEditTransaction}
             onDeleteTransaction={handleDeleteTransaction}
             onReconcile={handleReconcile}
           />

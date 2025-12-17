@@ -642,57 +642,119 @@ app.get('/api/reports/dre', checkAuth, (req, res) => {
     db.all(query, params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
 
-        const getTotal = (terms, type = 'despesa') => {
-            const termsLower = terms.map(t => t.toLowerCase());
-            return rows
-                .filter(r => {
-                    const catName = (r.category_name || '').toLowerCase();
-                    const txType = r.type === 'credito' ? 'receita' : 'despesa'; // Map DB type to report logic type
-                    return txType === type && termsLower.some(term => catName.includes(term));
-                })
-                .reduce((sum, r) => sum + r.value, 0);
+        let dre = {
+            receitaBruta: 0,
+            deducoes: 0,
+            cmv: 0,
+            despesasOperacionais: 0,
+            resultadoFinanceiro: 0,
+            receitaNaoOperacional: 0,
+            despesaNaoOperacional: 0,
+            impostos: 0 // Provision (IR/CSLL) - usually calculated or explicit
         };
 
-        const receitaBruta = rows
-            .filter(r => r.type === 'credito' && ['Vendas de Mercadorias', 'Prestação de Serviços'].includes(r.category_name))
-            .reduce((sum, r) => sum + r.value, 0);
+        // Categorization Map based on user spec
+        rows.forEach(t => {
+            const cat = (t.category_name || '').toLowerCase();
+            const val = t.value;
+            const isCredit = t.type === 'credito';
+            
+            // EXCLUSIONS (Do not count towards DRE)
+            if (cat.includes('transferências internas') || 
+                cat.includes('aportes de sócios') || 
+                cat.includes('distribuição de lucros') ||
+                cat.includes('retirada de sócios')) {
+                return;
+            }
 
-        const deducoes = getTotal(['imposto', 'devolução'], 'despesa');
-        const receitaLiquida = receitaBruta - deducoes;
-        const cmv = getTotal(['compra de mercadorias', 'matéria-prima'], 'despesa');
-        const resultadoBruto = receitaLiquida - cmv;
+            // 1. Receita Bruta
+            if (cat.includes('vendas de mercadorias') || 
+                cat.includes('prestação de serviços') || 
+                cat.includes('comissões recebidas') ||
+                cat.includes('receita de aluguel') ||
+                cat.includes('outras receitas operacionais')) {
+                 if (isCredit) dre.receitaBruta += val;
+            }
+            
+            // 2. Deduções (Impostos sobre Venda + Devoluções)
+            // Note: 'impostos e taxas' is ambiguous, but user put ICMS/ISS here. 
+            // Default seed 'Impostos e Taxas (ISS...)' matches here.
+            else if (cat.includes('impostos e taxas') || 
+                     cat.includes('impostos sobre vendas') ||
+                     cat.includes('icms') || cat.includes('iss') || cat.includes('das') ||
+                     cat.includes('devoluções de vendas') ||
+                     cat.includes('descontos concedidos')) {
+                 if (!isCredit) dre.deducoes += val;
+            }
 
-        const despesasOperacionais = getTotal([
-            'pessoal', 'terceiros', 'administrativas', 'comerciais',
-            'aluguel', 'manutenção', 'energia', 'telefone'
-        ], 'despesa');
+            // 4. Custos (CMV)
+            else if (cat.includes('compra de mercadorias') || 
+                     cat.includes('matéria-prima') || 
+                     cat.includes('fretes e transportes') || 
+                     cat.includes('custos diretos')) {
+                 if (!isCredit) dre.cmv += val;
+            }
 
-        const resultadoOperacional = resultadoBruto - despesasOperacionais;
-        const receitaFinanceira = getTotal(['financeira'], 'receita');
-        const despesasFinanceiras = getTotal(['financeira', 'juros', 'tarifa'], 'despesa');
+            // 8. Resultado Financeiro
+            // Receitas (+): Receita Financeira, Devoluções de Despesas, Reembolsos
+            // Despesas (-): Despesas Financeiras
+            else if (cat.includes('receita financeira') || 
+                     cat.includes('devoluções de despesas') || 
+                     cat.includes('reembolsos de clientes')) {
+                 if (isCredit) dre.resultadoFinanceiro += val;
+            }
+            else if (cat.includes('despesas financeiras') || 
+                     cat.includes('juros sobre empréstimos') || 
+                     cat.includes('multas') || 
+                     cat.includes('iof')) {
+                 if (!isCredit) dre.resultadoFinanceiro -= val;
+            }
 
-        const resultadoFinanceiro = receitaFinanceira - despesasFinanceiras;
-        const receitaNaoOperacional = getTotal(['não operacional'], 'receita');
-        const despesaNaoOperacional = getTotal(['não operacional'], 'despesa');
+            // 9. Resultado Não Operacional
+            else if (cat.includes('receitas não operacionais') || 
+                     cat.includes('venda de ativo')) {
+                 if (isCredit) dre.receitaNaoOperacional += val;
+            }
+            else if (cat.includes('despesas não operacionais') || 
+                     cat.includes('baixa de bens')) {
+                 if (!isCredit) dre.despesaNaoOperacional += val;
+            }
 
-        const resultadoNaoOperacional = receitaNaoOperacional - despesaNaoOperacional;
-        const impostos = getTotal(['imposto', 'taxa'], 'despesa'); // Assuming Taxes on profit usually separate but simplified here
+            // 11. Provisão Impostos (IR/CSLL)
+            else if (cat.includes('irpj') || cat.includes('csll')) {
+                 if (!isCredit) dre.impostos += val;
+            }
 
-        const resultadoAntesImpostos = resultadoOperacional + resultadoFinanceiro + resultadoNaoOperacional;
-        const lucroLiquido = resultadoAntesImpostos - impostos;
+            // 6. Despesas Operacionais (Everything else that is an expense)
+            // Admin, Pessoal, Comercial, Terceiros, Tarifas Bancarias (Op), Energia...
+            else if (!isCredit) {
+                // If it fell through here and is an expense, it's likely OpEx
+                // E.g. 'tarifas bancárias', 'energia', 'pessoal', 'aluguel'
+                dre.despesasOperacionais += val;
+            }
+        });
+
+        // Calculated Fields
+        const receitaLiquida = dre.receitaBruta - dre.deducoes;
+        const resultadoBruto = receitaLiquida - dre.cmv;
+        const resultadoOperacional = resultadoBruto - dre.despesasOperacionais;
+        const resultadoNaoOperacionalTotal = dre.receitaNaoOperacional - dre.despesaNaoOperacional;
+        const resultadoAntesImpostos = resultadoOperacional + dre.resultadoFinanceiro + resultadoNaoOperacionalTotal;
+        const lucroLiquido = resultadoAntesImpostos - dre.impostos;
 
         res.json({
-            receitaBruta,
-            deducoes,
+            receitaBruta: dre.receitaBruta,
+            deducoes: dre.deducoes,
             receitaLiquida,
-            cmv,
+            cmv: dre.cmv,
             resultadoBruto,
-            despesasOperacionais,
+            despesasOperacionais: dre.despesasOperacionais,
             resultadoOperacional,
-            resultadoFinanceiro,
-            resultadoNaoOperacional,
-            impostos,
-            lucroLiquido
+            resultadoFinanceiro: dre.resultadoFinanceiro,
+            resultadoNaoOperacional: resultadoNaoOperacionalTotal,
+            impostos: dre.impostos,
+            lucroLiquido,
+            resultadoAntesImpostos
         });
     });
 });

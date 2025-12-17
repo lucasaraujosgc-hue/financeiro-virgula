@@ -8,12 +8,13 @@ interface TransactionsProps {
   banks: Bank[];
   categories: Category[];
   onAddTransaction: (t: Omit<Transaction, 'id'>) => void;
+  onEditTransaction: (id: number, t: Omit<Transaction, 'id'>) => void;
   onDeleteTransaction: (id: number) => void;
   onReconcile: (id: number) => void;
 }
 
 const Transactions: React.FC<TransactionsProps> = ({ 
-  userId, transactions, banks, categories, onAddTransaction, onDeleteTransaction, onReconcile 
+  userId, transactions, banks, categories, onAddTransaction, onEditTransaction, onDeleteTransaction, onReconcile 
 }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -33,11 +34,6 @@ const Transactions: React.FC<TransactionsProps> = ({
     type: TransactionType.DEBIT,
     bankId: banks[0]?.id || 0,
     categoryId: 0, 
-  });
-
-  const getHeaders = () => ({
-      'Content-Type': 'application/json',
-      'user-id': String(userId)
   });
 
   useEffect(() => {
@@ -97,16 +93,7 @@ const Transactions: React.FC<TransactionsProps> = ({
     };
 
     if (editingId) {
-        try {
-            await fetch(`/api/transactions/${editingId}`, {
-                method: 'PUT',
-                headers: getHeaders(),
-                body: JSON.stringify(payload)
-            });
-            window.location.reload(); 
-        } catch (error) {
-            alert("Erro ao editar");
-        }
+        onEditTransaction(editingId, payload);
     } else {
         onAddTransaction({ ...payload, summary: '' });
     }
