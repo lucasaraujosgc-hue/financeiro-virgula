@@ -51,7 +51,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
              <div className="p-2 bg-primary/10 rounded-lg">
                 <Landmark className="text-primary" size={20} />
              </div>
-             <span className="font-bold text-lg text-white">Gonçalinho Fin</span>
+             <span className="font-bold text-lg text-white">Virgula Contábil</span>
           </div>
 
           <nav className="flex-1 px-4 space-y-6 overflow-y-auto custom-scroll">
@@ -176,7 +176,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
         {/* Mobile Header */}
         <header className="lg:hidden bg-surface border-b border-slate-800 p-4 flex items-center justify-between">
-          <span className="font-bold text-lg text-white">Gonçalinho Fin</span>
+          <span className="font-bold text-lg text-white">Virgula Contábil</span>
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
             className="p-2 text-slate-400 hover:bg-slate-800 rounded-lg"

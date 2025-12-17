@@ -99,7 +99,7 @@ const sendEmail = async (to, subject, text) => {
 
   try {
       const info = await transporter.sendMail({
-          from: `"Sistema Financeiro" <${process.env.MAIL_USERNAME}>`,
+          from: `"Virgula Contábil" <${process.env.MAIL_USERNAME}>`,
           to: to,
           subject: subject,
           text: text,
@@ -107,7 +107,7 @@ const sendEmail = async (to, subject, text) => {
                     <h2>${subject}</h2>
                     <p>${text}</p>
                     <hr>
-                    <p style="font-size: 12px; color: #999;">Sistema Financeiro Pro</p>
+                    <p style="font-size: 12px; color: #999;">Virgula Contábil</p>
                  </div>`
       });
       console.log(`[EMAIL] Sucesso! ID: ${info.messageId}`);
@@ -142,7 +142,8 @@ if (!fs.existsSync(BACKUP_DIR)) {
   }
 }
 
-const dbPath = fs.existsSync(BACKUP_DIR) ? path.join(BACKUP_DIR, 'finance.db') : './backup/finance.db';
+// MUDANÇA: Usando finance_v2.db para garantir novo schema correto
+const dbPath = fs.existsSync(BACKUP_DIR) ? path.join(BACKUP_DIR, 'finance_v2.db') : './backup/finance_v2.db';
 const db = new sqlite3.Database(dbPath);
 
 // Initialize Tables & Seed
@@ -249,7 +250,7 @@ app.post('/api/signup', (req, res) => {
       });
       catStmt.finalize();
 
-      await sendEmail(email, "Bem-vindo ao Sistema Financeiro", "Seu cadastro foi realizado com sucesso.");
+      await sendEmail(email, "Bem-vindo a Virgula Contábil", "Seu cadastro foi realizado com sucesso.");
       res.json({ id: newUserId, email, razaoSocial });
     }
   );
