@@ -144,20 +144,20 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, onTransactionsIm
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Gerenciador de OFX</h1>
-        <p className="text-gray-500">Importe e gerencie seus arquivos bancários</p>
+        <h1 className="text-2xl font-bold text-white">Gerenciador de OFX</h1>
+        <p className="text-slate-400">Importe e gerencie seus arquivos bancários</p>
       </div>
 
       {/* Import Area */}
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-         <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <FileUp className="text-blue-600" size={20}/> Nova Importação
+      <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
+         <h2 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
+            <FileUp className="text-primary" size={20}/> Nova Importação
          </h2>
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Conta Bancária</label>
+                <label className="text-sm font-medium text-slate-400">Conta Bancária</label>
                 <select 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-white"
                     value={importConfig.bankId}
                     onChange={e => setImportConfig({...importConfig, bankId: Number(e.target.value)})}
                 >
@@ -167,19 +167,19 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, onTransactionsIm
                 </select>
             </div>
             <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Data Inicial (Opcional)</label>
+                <label className="text-sm font-medium text-slate-400">Data Inicial (Opcional)</label>
                 <input 
                     type="date"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-white"
                     value={importConfig.startDate}
                     onChange={e => setImportConfig({...importConfig, startDate: e.target.value})}
                 />
             </div>
             <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Data Final (Opcional)</label>
+                <label className="text-sm font-medium text-slate-400">Data Final (Opcional)</label>
                 <input 
                     type="date"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-white"
                     value={importConfig.endDate}
                     onChange={e => setImportConfig({...importConfig, endDate: e.target.value})}
                 />
@@ -198,22 +198,22 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, onTransactionsIm
              />
              <button 
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-lg shadow-blue-200"
+                className="flex items-center gap-2 px-6 py-3 bg-primary text-slate-900 rounded-lg hover:bg-primaryHover font-medium transition-colors shadow-lg shadow-emerald-900/50"
              >
                 <FileSpreadsheet size={20} />
                 Selecionar Arquivo OFX
              </button>
-             <p className="text-sm text-gray-500">Selecione o arquivo .ofx fornecido pelo seu banco.</p>
+             <p className="text-sm text-slate-500">Selecione o arquivo .ofx fornecido pelo seu banco.</p>
          </div>
       </div>
 
       {/* List Area */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-           <h3 className="font-semibold text-gray-800">Histórico de Importações</h3>
+      <div className="bg-surface rounded-xl border border-slate-800 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/30">
+           <h3 className="font-semibold text-slate-200">Histórico de Importações</h3>
         </div>
         <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200">
+            <thead className="bg-slate-950 text-slate-400 font-medium border-b border-slate-800">
                 <tr>
                     <th className="px-6 py-4">Data Importação</th>
                     <th className="px-6 py-4">Arquivo</th>
@@ -222,33 +222,33 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, onTransactionsIm
                     <th className="px-6 py-4 text-center">Ações</th>
                 </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-800">
                 {imports.length === 0 ? (
                     <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-gray-400">Nenhuma importação realizada.</td>
+                        <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Nenhuma importação realizada.</td>
                     </tr>
                 ) : (
                     imports.map(imp => {
                         const bank = banks.find(b => b.id === imp.bankId);
                         return (
-                            <tr key={imp.id} className="hover:bg-gray-50">
-                                <td className="px-6 py-4 text-gray-500">
+                            <tr key={imp.id} className="hover:bg-slate-800/50">
+                                <td className="px-6 py-4 text-slate-400">
                                     {new Date(imp.importDate).toLocaleDateString()}
                                 </td>
-                                <td className="px-6 py-4 font-medium text-gray-900">{imp.fileName}</td>
-                                <td className="px-6 py-4 flex items-center gap-2">
-                                    {bank && <img src={bank.logo} className="w-5 h-5 rounded-full" />}
+                                <td className="px-6 py-4 font-medium text-slate-200">{imp.fileName}</td>
+                                <td className="px-6 py-4 flex items-center gap-2 text-slate-300">
+                                    {bank && <img src={bank.logo} className="w-5 h-5 rounded-full bg-white p-0.5" />}
                                     {bank?.name || 'Desconhecido'}
                                 </td>
                                 <td className="px-6 py-4 text-center">
-                                    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold">
+                                    <span className="bg-sky-500/10 text-sky-500 px-2 py-1 rounded-md text-xs font-bold border border-sky-500/20">
                                         {imp.transactionCount}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     <button 
                                         onClick={() => handleDeleteImport(imp.id)}
-                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                        className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
                                         title="Excluir Importação e Lançamentos"
                                     >
                                         <Trash2 size={18} />

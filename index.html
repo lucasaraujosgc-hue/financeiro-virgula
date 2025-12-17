@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,18 +9,24 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
             },
             colors: {
-              primary: '#0f172a',
-              secondary: '#334155',
-              accent: '#0ea5e9',
-              success: '#10b981',
-              danger: '#ef4444',
-              warning: '#f59e0b',
+              // Dark Theme Palette
+              background: '#020617', // Slate 950
+              surface: '#0f172a',    // Slate 900
+              surfaceHighlight: '#1e293b', // Slate 800
+              border: '#1e293b',     // Slate 800
+              
+              primary: '#10b981',    // Emerald 500
+              primaryHover: '#059669', // Emerald 600
+              
+              textMain: '#f8fafc',   // Slate 50
+              textMuted: '#94a3b8',  // Slate 400
             }
           }
         }
@@ -29,22 +35,23 @@
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #f3f4f6;
+        background-color: #020617; /* Dark Background */
+        color: #f8fafc; /* Light Text */
       }
-      /* Custom scrollbar for tables */
+      /* Custom scrollbar for tables - Dark Theme */
       .custom-scroll::-webkit-scrollbar {
         height: 8px;
         width: 8px;
       }
       .custom-scroll::-webkit-scrollbar-track {
-        background: #f1f1f1;
+        background: #0f172a;
       }
       .custom-scroll::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
+        background: #334155;
         border-radius: 4px;
       }
       .custom-scroll::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
+        background: #475569;
       }
     </style>
   <script type="importmap">

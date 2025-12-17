@@ -14,11 +14,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
   const displayUser = userName || 'Empresa';
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden text-slate-200">
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          className="fixed inset-0 bg-black/70 z-20 lg:hidden backdrop-blur-sm"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
@@ -26,30 +26,32 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
       {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-30
-        w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out
+        w-64 bg-surface border-r border-slate-800 transform transition-transform duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         <div className="h-full flex flex-col">
           
-          {/* Top User Section (Grey Background) */}
-          <div className="p-4 bg-gray-100 border-b border-gray-200">
+          {/* Top User Section */}
+          <div className="p-4 bg-slate-950 border-b border-slate-800">
              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-white">
+                    <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-primary border border-slate-700">
                         <User size={16} />
                     </div>
-                    <span className="font-semibold text-gray-700 text-sm truncate max-w-[120px]" title={displayUser}>
+                    <span className="font-semibold text-slate-200 text-sm truncate max-w-[120px]" title={displayUser}>
                         {displayUser}
                     </span>
                 </div>
-                <ChevronDown size={16} className="text-gray-500" />
+                <ChevronDown size={16} className="text-slate-500" />
              </div>
           </div>
 
           {/* App Header */}
           <div className="px-6 py-6 flex items-center gap-3">
-             <Landmark className="text-blue-600" size={24} />
-             <span className="font-bold text-lg text-gray-800">Dash Financeiro</span>
+             <div className="p-2 bg-primary/10 rounded-lg">
+                <Landmark className="text-primary" size={20} />
+             </div>
+             <span className="font-bold text-lg text-white">Gonçalinho Fin</span>
           </div>
 
           <nav className="flex-1 px-4 space-y-6 overflow-y-auto custom-scroll">
@@ -59,7 +61,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                 <button
                   onClick={() => { onTabChange('dashboard'); setIsMobileMenuOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                    ${activeTab === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:text-gray-900'}
+                    ${activeTab === 'dashboard' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                   `}
                 >
                   <LayoutDashboard size={18} />
@@ -69,7 +71,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                 <button
                   onClick={() => { onTabChange('forecasts'); setIsMobileMenuOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                    ${activeTab === 'forecasts' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:text-gray-900'}
+                    ${activeTab === 'forecasts' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                   `}
                 >
                   <ArrowUpRight size={18} />
@@ -79,7 +81,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                 <button
                   onClick={() => { onTabChange('transactions'); setIsMobileMenuOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                    ${activeTab === 'transactions' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:text-gray-900'}
+                    ${activeTab === 'transactions' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                   `}
                 >
                   <Receipt size={18} />
@@ -89,7 +91,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                 <button
                   onClick={() => { onTabChange('import'); setIsMobileMenuOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                    ${activeTab === 'import' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:text-gray-900'}
+                    ${activeTab === 'import' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                   `}
                 >
                   <FileSpreadsheet size={18} />
@@ -99,12 +101,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
 
             {/* Cadastros */}
             <div>
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">Cadastros</div>
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">Cadastros</div>
                 <div className="space-y-1">
                     <button
                         onClick={() => { onTabChange('banks'); setIsMobileMenuOpen(false); }}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                            ${activeTab === 'banks' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:text-gray-900'}
+                            ${activeTab === 'banks' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                         `}
                     >
                         <Landmark size={18} />
@@ -113,7 +115,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                     <button
                         onClick={() => { onTabChange('categories'); setIsMobileMenuOpen(false); }}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                            ${activeTab === 'categories' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:text-gray-900'}
+                            ${activeTab === 'categories' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                         `}
                     >
                         <Tags size={18} />
@@ -124,12 +126,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
 
             {/* Relatórios */}
             <div>
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">Relatórios</div>
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">Relatórios</div>
                 <div className="space-y-1">
                     <button
                         onClick={() => { onTabChange('reports'); setIsMobileMenuOpen(false); }}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                            ${activeTab === 'reports' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:text-gray-900'}
+                            ${activeTab === 'reports' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                         `}
                     >
                         <Calculator size={18} />
@@ -138,7 +140,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                     <button
                         onClick={() => { onTabChange('reports'); setIsMobileMenuOpen(false); }}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                           text-gray-600 hover:text-gray-900
+                           text-slate-400 hover:text-white hover:bg-slate-800
                         `}
                     >
                         <Scale size={18} />
@@ -147,7 +149,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                     <button
                         onClick={() => { onTabChange('reports'); setIsMobileMenuOpen(false); }}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                           text-gray-600 hover:text-gray-900
+                           text-slate-400 hover:text-white hover:bg-slate-800
                         `}
                     >
                         <PieChart size={18} />
@@ -158,10 +160,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
 
           </nav>
 
-          <div className="p-4 border-t border-gray-100">
+          <div className="p-4 border-t border-slate-800">
             <button 
               onClick={onLogout}
-              className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
             >
               <LogOut size={18} />
               Sair
@@ -171,13 +173,13 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
         {/* Mobile Header */}
-        <header className="lg:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between">
-          <span className="font-bold text-lg text-gray-800">Dash Financeiro</span>
+        <header className="lg:hidden bg-surface border-b border-slate-800 p-4 flex items-center justify-between">
+          <span className="font-bold text-lg text-white">Gonçalinho Fin</span>
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
-            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+            className="p-2 text-slate-400 hover:bg-slate-800 rounded-lg"
           >
             <Menu size={24} />
           </button>

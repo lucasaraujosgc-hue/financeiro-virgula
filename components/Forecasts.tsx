@@ -11,16 +11,14 @@ interface ForecastsProps {
 const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
   const [forecasts, setForecasts] = useState<Forecast[]>([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedBankId, setSelectedBankId] = useState<number | 'all'>('all');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Delete Modal State
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: number | null }>({ isOpen: false, id: null });
 
-  // Form State
   const [formData, setFormData] = useState({
       description: '',
       value: '',
@@ -41,7 +39,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
 
   useEffect(() => {
     fetchForecasts();
-  }, [userId]); // Refetch if user changes
+  }, [userId]); 
 
   const fetchForecasts = async () => {
     try {
@@ -61,7 +59,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
           date: f.date,
           categoryId: f.categoryId,
           bankId: f.bankId,
-          installments: 1, // Reset installments for edit simple mode (usually we block editing recurrence structure)
+          installments: 1,
           isFixed: false
       });
       setIsModalOpen(true);
@@ -72,7 +70,6 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
     const value = Math.abs(Number(formData.value));
     
     if (editingId) {
-        // Edit Mode (Simple Update)
          await fetch(`/api/forecasts/${editingId}`, {
             method: 'PUT',
             headers: getHeaders(),
@@ -86,11 +83,9 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
             })
         });
     } else {
-        // Create Mode
         const groupId = Date.now().toString(); 
         const baseDate = new Date(formData.date);
         
-        // If Fixed, generate for 5 years (60 months) to simulate "Infinite"
         const installments = formData.isFixed ? 60 : Math.max(1, Math.floor(Number(formData.installments)));
 
         for (let i = 0; i < installments; i++) {
@@ -105,7 +100,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
                 categoryId: Number(formData.categoryId),
                 bankId: Number(formData.bankId),
                 installmentCurrent: formData.isFixed ? i + 1 : i + 1,
-                installmentTotal: formData.isFixed ? 0 : installments, // 0 indicates fixed/infinite visually
+                installmentTotal: formData.isFixed ? 0 : installments, 
                 groupId: (installments > 1 || formData.isFixed) ? groupId : null
             };
 
@@ -140,13 +135,11 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
 
   const handleRealize = async (id: number) => {
       if(confirm('Confirmar realização desta previsão? Ela será movida para Lançamentos.')) {
-           // Mark as realized in Forecast
            await fetch(`/api/forecasts/${id}/realize`, { 
                method: 'PATCH',
                headers: getHeaders()
             });
            
-           // Create actual transaction
            const forecast = forecasts.find(f => f.id === id);
            if (forecast) {
                const descSuffix = forecast.installmentTotal 
@@ -171,9 +164,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
       }
   };
 
-  // Filter Logic
   const filteredForecasts = forecasts.filter(f => {
-      // Adjust for timezone issues with simple date strings by forcing UTC components if needed, or simple split
       const [y, m] = f.date.split('-'); 
       const yearMatch = parseInt(y) === selectedYear;
       const monthMatch = (parseInt(m) - 1) === selectedMonth;
@@ -194,26 +185,26 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
   return (
     <div className="space-y-6">
        <div>
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-bold text-white">
             Previsões Financeiras - {MONTHS[selectedMonth]}/{selectedYear}
         </h1>
        </div>
 
        {/* Filters Header */}
-       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-end md:items-center justify-between gap-4">
+       <div className="bg-surface p-4 rounded-xl border border-slate-800 shadow-sm flex flex-col md:flex-row items-end md:items-center justify-between gap-4">
            <div className="flex gap-4 w-full md:w-auto">
                <div>
-                   <label className="text-xs font-semibold text-gray-500 block mb-1">Selecionar Ano</label>
-                   <div className="flex bg-gray-100 rounded-lg p-1">
-                       <button onClick={() => setSelectedYear(selectedYear - 1)} className="px-3 py-1 hover:bg-white rounded-md text-sm"><ChevronLeft size={16}/></button>
-                       <span className="px-4 py-1 font-semibold text-gray-700">{selectedYear}</span>
-                       <button onClick={() => setSelectedYear(selectedYear + 1)} className="px-3 py-1 hover:bg-white rounded-md text-sm"><ChevronRight size={16}/></button>
+                   <label className="text-xs font-semibold text-slate-500 block mb-1">Selecionar Ano</label>
+                   <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
+                       <button onClick={() => setSelectedYear(selectedYear - 1)} className="px-3 py-1 hover:bg-slate-800 rounded-md text-sm text-slate-300"><ChevronLeft size={16}/></button>
+                       <span className="px-4 py-1 font-semibold text-white">{selectedYear}</span>
+                       <button onClick={() => setSelectedYear(selectedYear + 1)} className="px-3 py-1 hover:bg-slate-800 rounded-md text-sm text-slate-300"><ChevronRight size={16}/></button>
                    </div>
                </div>
                <div className="flex-1">
-                   <label className="text-xs font-semibold text-gray-500 block mb-1">Filtrar por Banco</label>
+                   <label className="text-xs font-semibold text-slate-500 block mb-1">Filtrar por Banco</label>
                    <select 
-                     className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm outline-none"
+                     className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white outline-none focus:border-primary"
                      value={selectedBankId}
                      onChange={e => setSelectedBankId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
                    >
@@ -225,35 +216,35 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
            
            <button 
              onClick={() => { setEditingId(null); setIsModalOpen(true); }}
-             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 shadow-sm shadow-blue-200"
+             className="px-4 py-2 bg-primary text-slate-900 rounded-lg hover:bg-primaryHover font-medium flex items-center gap-2 shadow-sm shadow-emerald-900/20"
            >
                <Plus size={18}/> Nova Previsão
            </button>
        </div>
 
        {/* Month Navigation & Summary */}
-       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+       <div className="bg-surface rounded-xl border border-slate-800 shadow-sm overflow-hidden">
            <div className="flex flex-col lg:flex-row">
                {/* Month Carousel */}
-               <div className="lg:w-1/3 border-b lg:border-b-0 lg:border-r border-gray-100 p-4 flex items-center justify-between">
-                    <button onClick={() => setSelectedMonth(prev => prev === 0 ? 11 : prev - 1)} className="p-2 hover:bg-gray-100 rounded-full text-blue-600"><ChevronLeft/></button>
-                    <div className="font-bold text-xl text-blue-700">{MONTHS[selectedMonth]}</div>
-                    <button onClick={() => setSelectedMonth(prev => prev === 11 ? 0 : prev + 1)} className="p-2 hover:bg-gray-100 rounded-full text-blue-600"><ChevronRight/></button>
+               <div className="lg:w-1/3 border-b lg:border-b-0 lg:border-r border-slate-800 p-4 flex items-center justify-between">
+                    <button onClick={() => setSelectedMonth(prev => prev === 0 ? 11 : prev - 1)} className="p-2 hover:bg-slate-800 rounded-full text-primary"><ChevronLeft/></button>
+                    <div className="font-bold text-xl text-primary">{MONTHS[selectedMonth]}</div>
+                    <button onClick={() => setSelectedMonth(prev => prev === 11 ? 0 : prev + 1)} className="p-2 hover:bg-slate-800 rounded-full text-primary"><ChevronRight/></button>
                </div>
                
                {/* Summary Cards */}
-               <div className="flex-1 grid grid-cols-3 divide-x divide-gray-100">
+               <div className="flex-1 grid grid-cols-3 divide-x divide-slate-800">
                     <div className="p-4 text-center">
-                        <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Receitas Previstas</div>
-                        <div className="text-xl font-bold text-emerald-600">R$ {totalIncome.toFixed(2)}</div>
+                        <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Receitas Previstas</div>
+                        <div className="text-xl font-bold text-emerald-500">R$ {totalIncome.toFixed(2)}</div>
                     </div>
                     <div className="p-4 text-center">
-                        <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Despesas Previstas</div>
-                        <div className="text-xl font-bold text-rose-600">R$ {totalExpense.toFixed(2)}</div>
+                        <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Despesas Previstas</div>
+                        <div className="text-xl font-bold text-rose-500">R$ {totalExpense.toFixed(2)}</div>
                     </div>
-                    <div className="p-4 text-center bg-gray-50/50">
-                        <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Saldo Projetado</div>
-                        <div className={`text-xl font-bold ${projectedBalance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <div className="p-4 text-center bg-slate-900/50">
+                        <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Saldo Projetado</div>
+                        <div className={`text-xl font-bold ${projectedBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                             R$ {projectedBalance.toFixed(2)}
                         </div>
                     </div>
@@ -262,15 +253,15 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
        </div>
 
        {/* Detailed List */}
-       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-           <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-               <h3 className="font-semibold text-gray-800">Previsões Detalhadas</h3>
-               <span className="text-xs bg-white border border-gray-200 px-2 py-1 rounded text-gray-500">
+       <div className="bg-surface border border-slate-800 rounded-xl shadow-sm overflow-hidden">
+           <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/30 flex justify-between items-center">
+               <h3 className="font-semibold text-slate-200">Previsões Detalhadas</h3>
+               <span className="text-xs bg-slate-800 border border-slate-700 px-2 py-1 rounded text-slate-400">
                    {filteredForecasts.length} registros
                </span>
            </div>
            <table className="w-full text-sm text-left">
-               <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200">
+               <thead className="bg-slate-950 text-slate-400 font-medium border-b border-slate-800">
                    <tr>
                        <th className="px-6 py-3">Banco</th>
                        <th className="px-6 py-3">Dia</th>
@@ -281,9 +272,9 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
                        <th className="px-6 py-3 text-center">Ações</th>
                    </tr>
                </thead>
-               <tbody className="divide-y divide-gray-100">
+               <tbody className="divide-y divide-slate-800">
                    {filteredForecasts.length === 0 ? (
-                       <tr><td colSpan={7} className="text-center py-8 text-gray-400">Nenhuma previsão para este período.</td></tr>
+                       <tr><td colSpan={7} className="text-center py-8 text-slate-500">Nenhuma previsão para este período.</td></tr>
                    ) : (
                        filteredForecasts.map(f => {
                            const bank = banks.find(b => b.id === f.bankId);
@@ -291,45 +282,45 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
                            const isFixed = f.installmentTotal === 0;
                            
                            return (
-                               <tr key={f.id} className="hover:bg-gray-50">
+                               <tr key={f.id} className="hover:bg-slate-800/50">
                                    <td className="px-6 py-3">
-                                       {bank && <img src={bank.logo} className="w-6 h-6 rounded object-contain" title={bank.name}/>}
+                                       {bank && <img src={bank.logo} className="w-6 h-6 rounded object-contain bg-white p-0.5" title={bank.name}/>}
                                    </td>
-                                   <td className="px-6 py-3 text-gray-500">{day}/{selectedMonth+1}</td>
-                                   <td className="px-6 py-3 font-medium text-gray-900">{f.description}</td>
-                                   <td className={`px-6 py-3 text-right font-bold ${f.type === TransactionType.DEBIT ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                   <td className="px-6 py-3 text-slate-400">{day}/{selectedMonth+1}</td>
+                                   <td className="px-6 py-3 font-medium text-slate-200">{f.description}</td>
+                                   <td className={`px-6 py-3 text-right font-bold ${f.type === TransactionType.DEBIT ? 'text-rose-500' : 'text-emerald-500'}`}>
                                        {f.value.toFixed(2)}
                                    </td>
                                    <td className="px-6 py-3 text-center">
                                        {isFixed ? (
-                                            <span className="flex items-center justify-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                                            <span className="flex items-center justify-center gap-1 text-xs font-semibold text-sky-400 bg-sky-900/20 px-2 py-0.5 rounded border border-sky-900/40">
                                                 <Infinity size={12}/> Fixo
                                             </span>
                                        ) : f.installmentTotal ? (
-                                           <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-xs font-semibold">
+                                           <span className="bg-sky-900/20 text-sky-400 px-2 py-0.5 rounded text-xs font-semibold border border-sky-900/40">
                                                {f.installmentCurrent}/{f.installmentTotal}
                                            </span>
                                        ) : '-'}
                                    </td>
                                    <td className="px-6 py-3 text-center">
                                        {f.realized ? (
-                                           <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold">Realizado</span>
+                                           <span className="bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded text-xs font-bold border border-emerald-500/20">Realizado</span>
                                        ) : (
-                                           <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold">Pendente</span>
+                                           <span className="bg-amber-500/10 text-amber-500 px-2 py-1 rounded text-xs font-bold border border-amber-500/20">Pendente</span>
                                        )}
                                    </td>
                                    <td className="px-6 py-3 text-center flex justify-center gap-2">
                                        {!f.realized && (
                                            <>
-                                            <button onClick={() => handleRealize(f.id)} className="p-1.5 bg-emerald-100 text-emerald-600 rounded hover:bg-emerald-200" title="Efetivar">
+                                            <button onClick={() => handleRealize(f.id)} className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded hover:bg-emerald-500/20" title="Efetivar">
                                                 <Check size={16}/>
                                             </button>
-                                            <button onClick={() => handleEditClick(f)} className="p-1.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200" title="Editar">
+                                            <button onClick={() => handleEditClick(f)} className="p-1.5 bg-sky-500/10 text-sky-500 rounded hover:bg-sky-500/20" title="Editar">
                                                 <Edit2 size={16}/>
                                             </button>
                                            </>
                                        )}
-                                       <button onClick={() => handleDeleteClick(f.id)} className="p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200" title="Excluir">
+                                       <button onClick={() => handleDeleteClick(f.id)} className="p-1.5 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20" title="Excluir">
                                            <Trash2 size={16}/>
                                        </button>
                                    </td>
@@ -344,18 +335,18 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
        {/* Edit/Create Modal */}
        {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-              <h3 className="font-semibold text-gray-900">{editingId ? 'Editar Previsão' : 'Nova Previsão'}</h3>
-              <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-gray-400"/></button>
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
+          <div className="relative bg-surface border border-slate-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-800 bg-slate-950 flex justify-between items-center">
+              <h3 className="font-semibold text-white">{editingId ? 'Editar Previsão' : 'Nova Previsão'}</h3>
+              <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-slate-400"/></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                      <div>
-                         <label className="text-sm text-gray-700 font-medium">Tipo</label>
+                         <label className="text-sm text-slate-400 font-medium">Tipo</label>
                          <select 
-                            className="w-full mt-1 border border-gray-300 rounded-lg p-2"
+                            className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
                             value={formData.type}
                             onChange={e => setFormData({...formData, type: e.target.value as TransactionType})}
                          >
@@ -364,38 +355,38 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
                          </select>
                      </div>
                      <div>
-                         <label className="text-sm text-gray-700 font-medium">Data Início</label>
+                         <label className="text-sm text-slate-400 font-medium">Data Início</label>
                          <input 
                             type="date"
-                            className="w-full mt-1 border border-gray-300 rounded-lg p-2"
+                            className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
                             value={formData.date}
                             onChange={e => setFormData({...formData, date: e.target.value})}
                          />
                      </div>
                 </div>
                 <div>
-                     <label className="text-sm text-gray-700 font-medium">Descrição</label>
+                     <label className="text-sm text-slate-400 font-medium">Descrição</label>
                      <input 
                         type="text" required
-                        className="w-full mt-1 border border-gray-300 rounded-lg p-2"
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
                         value={formData.description}
                         onChange={e => setFormData({...formData, description: e.target.value})}
                      />
                 </div>
                 <div>
-                     <label className="text-sm text-gray-700 font-medium">Valor</label>
+                     <label className="text-sm text-slate-400 font-medium">Valor</label>
                      <input 
                         type="number" step="0.01" required
-                        className="w-full mt-1 border border-gray-300 rounded-lg p-2 font-bold"
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 font-bold text-white outline-none focus:border-primary"
                         value={formData.value}
                         onChange={e => setFormData({...formData, value: e.target.value})}
                      />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                      <div>
-                         <label className="text-sm text-gray-700 font-medium">Banco</label>
+                         <label className="text-sm text-slate-400 font-medium">Banco</label>
                          <select 
-                            className="w-full mt-1 border border-gray-300 rounded-lg p-2"
+                            className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
                             value={formData.bankId}
                             onChange={e => setFormData({...formData, bankId: Number(e.target.value)})}
                          >
@@ -403,9 +394,9 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
                          </select>
                      </div>
                      <div>
-                         <label className="text-sm text-gray-700 font-medium">Categoria</label>
+                         <label className="text-sm text-slate-400 font-medium">Categoria</label>
                          <select 
-                            className="w-full mt-1 border border-gray-300 rounded-lg p-2"
+                            className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
                             value={formData.categoryId}
                             onChange={e => setFormData({...formData, categoryId: Number(e.target.value)})}
                          >
@@ -417,8 +408,8 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
                 
                 {/* Recurrence Section - Only show on Create */}
                 {!editingId && (
-                    <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                        <label className="text-sm font-semibold text-blue-800 mb-2 block flex items-center gap-2">
+                    <div className="bg-sky-950/30 p-3 rounded-lg border border-sky-900/50">
+                        <label className="text-sm font-semibold text-sky-400 mb-2 block flex items-center gap-2">
                             <Repeat size={14}/> Recorrência
                         </label>
                         
@@ -428,30 +419,30 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
                                     type="checkbox"
                                     checked={formData.isFixed}
                                     onChange={e => setFormData({...formData, isFixed: e.target.checked})}
-                                    className="w-4 h-4 text-blue-600 rounded"
+                                    className="w-4 h-4 text-sky-500 rounded bg-slate-800 border-slate-600"
                                 />
-                                <span className="text-sm text-gray-700">Lançamento Fixo Mensal</span>
+                                <span className="text-sm text-slate-300">Lançamento Fixo Mensal</span>
                             </label>
                         </div>
 
                         {!formData.isFixed && (
                              <div className="flex items-center gap-2">
-                                <CalendarDays className="text-gray-400" size={20}/>
+                                <CalendarDays className="text-slate-400" size={20}/>
                                 <input 
                                     type="number" min="1" max="360"
-                                    className="w-20 border border-gray-300 rounded-lg p-1.5 text-center"
+                                    className="w-20 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-center text-white"
                                     value={formData.installments}
                                     onChange={e => setFormData({...formData, installments: Number(e.target.value)})}
                                 />
-                                <span className="text-sm text-gray-500">parcelas</span>
+                                <span className="text-sm text-slate-400">parcelas</span>
                             </div>
                         )}
                     </div>
                 )}
 
                 <div className="pt-4 flex gap-3">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
-                    <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Salvar</button>
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800">Cancelar</button>
+                    <button type="submit" className="flex-1 py-2 bg-primary text-slate-900 rounded-lg hover:bg-primaryHover">Salvar</button>
                 </div>
             </form>
           </div>
@@ -461,26 +452,26 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
        {/* Delete Logic Modal */}
        {deleteModal.isOpen && (
            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteModal({ isOpen: false, id: null })} />
-                <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center animate-in fade-in zoom-in duration-200">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+                <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDeleteModal({ isOpen: false, id: null })} />
+                <div className="relative bg-surface border border-slate-800 rounded-xl shadow-xl w-full max-w-sm p-6 text-center animate-in fade-in zoom-in duration-200">
+                    <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
                         <Trash2 size={24}/>
                     </div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">Excluir Previsão</h3>
-                    <p className="text-gray-500 mb-6 text-sm">Esta previsão parece fazer parte de uma recorrência. Como deseja excluir?</p>
+                    <h3 className="text-lg font-bold text-white mb-2">Excluir Previsão</h3>
+                    <p className="text-slate-400 mb-6 text-sm">Esta previsão parece fazer parte de uma recorrência. Como deseja excluir?</p>
                     
                     <div className="space-y-2">
-                        <button onClick={() => confirmDelete('single')} className="w-full py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg font-medium text-sm">
+                        <button onClick={() => confirmDelete('single')} className="w-full py-2.5 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-lg font-medium text-sm">
                             Apenas esta previsão
                         </button>
-                        <button onClick={() => confirmDelete('future')} className="w-full py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg font-medium text-sm">
+                        <button onClick={() => confirmDelete('future')} className="w-full py-2.5 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-lg font-medium text-sm">
                             Esta e as futuras
                         </button>
                         <button onClick={() => confirmDelete('all')} className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm shadow-sm">
                             Todas as ocorrências
                         </button>
                     </div>
-                    <button onClick={() => setDeleteModal({ isOpen: false, id: null })} className="mt-4 text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
+                    <button onClick={() => setDeleteModal({ isOpen: false, id: null })} className="mt-4 text-xs text-slate-500 hover:text-slate-300">Cancelar</button>
                 </div>
            </div>
        )}

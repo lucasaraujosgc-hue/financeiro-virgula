@@ -16,7 +16,7 @@ const Transactions: React.FC<TransactionsProps> = ({
   userId, transactions, banks, categories, onAddTransaction, onDeleteTransaction, onReconcile 
 }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedBankId, setSelectedBankId] = useState<number | 'all'>('all');
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,7 +26,6 @@ const Transactions: React.FC<TransactionsProps> = ({
 
   const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-  // Form State
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     description: '',
@@ -41,10 +40,8 @@ const Transactions: React.FC<TransactionsProps> = ({
       'user-id': String(userId)
   });
 
-  // Reset/Set defaults
   useEffect(() => {
     if (isModalOpen && !editingId) {
-       // Reset for new transaction
        setFormData({
         date: new Date().toISOString().split('T')[0],
         description: '',
@@ -69,16 +66,13 @@ const Transactions: React.FC<TransactionsProps> = ({
       setIsModalOpen(true);
   };
 
-  // Filter Transactions based on Time and Bank
   const filteredTransactions = transactions.filter(t => {
     const d = new Date(t.date);
-    // Simple parsing to avoid TZ issues
     const [y, m] = t.date.split('-');
     const yearMatch = parseInt(y) === selectedYear;
     const monthMatch = (parseInt(m) - 1) === selectedMonth;
     const bankMatch = selectedBankId === 'all' || t.bankId === selectedBankId;
     
-    // Additional Search/Type filters
     const matchesSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === 'all' || t.type === typeFilter;
 
@@ -103,7 +97,6 @@ const Transactions: React.FC<TransactionsProps> = ({
     };
 
     if (editingId) {
-        // Update Existing
         try {
             await fetch(`/api/transactions/${editingId}`, {
                 method: 'PUT',
@@ -115,7 +108,6 @@ const Transactions: React.FC<TransactionsProps> = ({
             alert("Erro ao editar");
         }
     } else {
-        // Create New
         onAddTransaction({ ...payload, summary: '' });
     }
 
@@ -132,26 +124,26 @@ const Transactions: React.FC<TransactionsProps> = ({
   return (
     <div className="space-y-6">
        <div>
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-bold text-white">
             Lançamentos - {MONTHS[selectedMonth]}/{selectedYear}
         </h1>
        </div>
 
       {/* Filters Header */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-end md:items-center justify-between gap-4">
+      <div className="bg-surface p-4 rounded-xl border border-slate-800 shadow-sm flex flex-col md:flex-row items-end md:items-center justify-between gap-4">
            <div className="flex gap-4 w-full md:w-auto">
                <div>
-                   <label className="text-xs font-semibold text-gray-500 block mb-1">Selecionar Ano</label>
-                   <div className="flex bg-gray-100 rounded-lg p-1">
-                       <button onClick={() => setSelectedYear(selectedYear - 1)} className="px-3 py-1 hover:bg-white rounded-md text-sm"><ChevronLeft size={16}/></button>
-                       <span className="px-4 py-1 font-semibold text-gray-700">{selectedYear}</span>
-                       <button onClick={() => setSelectedYear(selectedYear + 1)} className="px-3 py-1 hover:bg-white rounded-md text-sm"><ChevronRight size={16}/></button>
+                   <label className="text-xs font-semibold text-slate-500 block mb-1">Selecionar Ano</label>
+                   <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
+                       <button onClick={() => setSelectedYear(selectedYear - 1)} className="px-3 py-1 hover:bg-slate-800 rounded-md text-sm text-slate-300"><ChevronLeft size={16}/></button>
+                       <span className="px-4 py-1 font-semibold text-white">{selectedYear}</span>
+                       <button onClick={() => setSelectedYear(selectedYear + 1)} className="px-3 py-1 hover:bg-slate-800 rounded-md text-sm text-slate-300"><ChevronRight size={16}/></button>
                    </div>
                </div>
                <div className="flex-1">
-                   <label className="text-xs font-semibold text-gray-500 block mb-1">Filtrar por Banco</label>
+                   <label className="text-xs font-semibold text-slate-500 block mb-1">Filtrar por Banco</label>
                    <select 
-                     className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm outline-none"
+                     className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white outline-none focus:border-primary"
                      value={selectedBankId}
                      onChange={e => setSelectedBankId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
                    >
@@ -163,33 +155,33 @@ const Transactions: React.FC<TransactionsProps> = ({
            
            <button 
              onClick={() => { setEditingId(null); setIsModalOpen(true); }}
-             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 shadow-sm shadow-blue-200"
+             className="px-4 py-2 bg-primary text-slate-900 rounded-lg hover:bg-primaryHover font-medium flex items-center gap-2 shadow-sm shadow-emerald-900/20"
            >
                <Plus size={18}/> Novo Lançamento
            </button>
       </div>
 
        {/* Month Navigation & Summary */}
-       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+       <div className="bg-surface rounded-xl border border-slate-800 shadow-sm overflow-hidden">
            <div className="flex flex-col lg:flex-row">
-               <div className="lg:w-1/3 border-b lg:border-b-0 lg:border-r border-gray-100 p-4 flex items-center justify-between">
-                    <button onClick={() => setSelectedMonth(prev => prev === 0 ? 11 : prev - 1)} className="p-2 hover:bg-gray-100 rounded-full text-blue-600"><ChevronLeft/></button>
-                    <div className="font-bold text-xl text-blue-700">{MONTHS[selectedMonth]}</div>
-                    <button onClick={() => setSelectedMonth(prev => prev === 11 ? 0 : prev + 1)} className="p-2 hover:bg-gray-100 rounded-full text-blue-600"><ChevronRight/></button>
+               <div className="lg:w-1/3 border-b lg:border-b-0 lg:border-r border-slate-800 p-4 flex items-center justify-between">
+                    <button onClick={() => setSelectedMonth(prev => prev === 0 ? 11 : prev - 1)} className="p-2 hover:bg-slate-800 rounded-full text-primary"><ChevronLeft/></button>
+                    <div className="font-bold text-xl text-primary">{MONTHS[selectedMonth]}</div>
+                    <button onClick={() => setSelectedMonth(prev => prev === 11 ? 0 : prev + 1)} className="p-2 hover:bg-slate-800 rounded-full text-primary"><ChevronRight/></button>
                </div>
                
-               <div className="flex-1 grid grid-cols-3 divide-x divide-gray-100">
+               <div className="flex-1 grid grid-cols-3 divide-x divide-slate-800">
                     <div className="p-4 text-center">
-                        <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Receitas</div>
-                        <div className="text-xl font-bold text-emerald-600">R$ {totalIncome.toFixed(2)}</div>
+                        <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Receitas</div>
+                        <div className="text-xl font-bold text-emerald-500">R$ {totalIncome.toFixed(2)}</div>
                     </div>
                     <div className="p-4 text-center">
-                        <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Despesas</div>
-                        <div className="text-xl font-bold text-rose-600">R$ {totalExpense.toFixed(2)}</div>
+                        <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Despesas</div>
+                        <div className="text-xl font-bold text-rose-500">R$ {totalExpense.toFixed(2)}</div>
                     </div>
-                    <div className="p-4 text-center bg-gray-50/50">
-                        <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Saldo do Mês</div>
-                        <div className={`text-xl font-bold ${periodBalance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <div className="p-4 text-center bg-slate-900/50">
+                        <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Saldo do Mês</div>
+                        <div className={`text-xl font-bold ${periodBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                             R$ {periodBalance.toFixed(2)}
                         </div>
                     </div>
@@ -198,20 +190,20 @@ const Transactions: React.FC<TransactionsProps> = ({
        </div>
 
       {/* Internal Search */}
-      <div className="bg-white px-4 py-2 border border-gray-200 rounded-lg shadow-sm flex items-center gap-4">
+      <div className="bg-surface px-4 py-2 border border-slate-800 rounded-lg shadow-sm flex items-center gap-4">
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
           <input
             type="text"
             placeholder="Buscar por descrição neste mês..."
-            className="w-full pl-10 pr-4 py-2 bg-transparent border-none outline-none text-sm"
+            className="w-full pl-10 pr-4 py-2 bg-transparent border-none outline-none text-sm text-white placeholder-slate-600"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="h-6 w-px bg-gray-200"></div>
+        <div className="h-6 w-px bg-slate-700"></div>
         <select 
-            className="bg-transparent text-sm text-gray-600 outline-none"
+            className="bg-transparent text-sm text-slate-400 outline-none"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
           >
@@ -222,16 +214,16 @@ const Transactions: React.FC<TransactionsProps> = ({
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-            <h3 className="font-semibold text-gray-800">Lançamentos Detalhados</h3>
-            <span className="text-xs bg-white border border-gray-200 px-2 py-1 rounded text-gray-500">
+      <div className="bg-surface border border-slate-800 rounded-xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/30 flex justify-between items-center">
+            <h3 className="font-semibold text-slate-200">Lançamentos Detalhados</h3>
+            <span className="text-xs bg-slate-800 border border-slate-700 px-2 py-1 rounded text-slate-400">
                 {filteredTransactions.length} registros
             </span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200">
+            <thead className="bg-slate-950 text-slate-400 font-medium border-b border-slate-800">
               <tr>
                 <th className="px-6 py-4">Data</th>
                 <th className="px-6 py-4">Descrição</th>
@@ -242,10 +234,10 @@ const Transactions: React.FC<TransactionsProps> = ({
                 <th className="px-6 py-4 text-center">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-800">
               {filteredTransactions.length === 0 ? (
                   <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                      <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                           Nenhum lançamento encontrado neste período
                       </td>
                   </tr>
@@ -255,33 +247,33 @@ const Transactions: React.FC<TransactionsProps> = ({
                     const bank = banks.find(b => b.id === t.bankId);
                     
                     return (
-                      <tr key={t.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-6 py-4 text-gray-500 font-mono">
+                      <tr key={t.id} className="hover:bg-slate-800/50 transition-colors">
+                        <td className="px-6 py-4 text-slate-400 font-mono">
                             {new Date(t.date).toLocaleDateString('pt-BR')}
                         </td>
-                        <td className="px-6 py-4 font-medium text-gray-900">{t.description}</td>
+                        <td className="px-6 py-4 font-medium text-slate-200">{t.description}</td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${!category ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-gray-100 text-gray-800'}`}>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${!category ? 'bg-red-900/30 text-red-400 border border-red-900/50' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
                             {category?.name || 'Sem Categoria'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-gray-500 flex items-center gap-2">
-                            {bank && <img src={bank.logo} className="w-5 h-5 rounded-full object-contain"/>}
+                        <td className="px-6 py-4 text-slate-400 flex items-center gap-2">
+                            {bank && <img src={bank.logo} className="w-5 h-5 rounded-full object-contain bg-white p-0.5"/>}
                             {bank?.name}
                         </td>
-                        <td className={`px-6 py-4 text-right font-medium ${t.type === TransactionType.CREDIT ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        <td className={`px-6 py-4 text-right font-medium ${t.type === TransactionType.CREDIT ? 'text-emerald-500' : 'text-rose-500'}`}>
                           {t.type === TransactionType.DEBIT ? '- ' : '+ '}
                           R$ {t.value.toFixed(2)}
                         </td>
                         <td className="px-6 py-4 text-center">
                           {t.reconciled ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-xs font-medium">
                               <Check size={12} /> Conciliado
                             </span>
                           ) : (
                             <button 
                                 onClick={() => onReconcile(t.id)}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-medium hover:bg-amber-100 transition-colors"
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 text-amber-500 border border-amber-500/20 text-xs font-medium hover:bg-amber-500/20 transition-colors"
                             >
                               Pendente
                             </button>
@@ -290,14 +282,14 @@ const Transactions: React.FC<TransactionsProps> = ({
                         <td className="px-6 py-4 text-center flex items-center justify-center gap-2">
                           <button 
                             onClick={() => handleEditClick(t)}
-                            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                            className="p-1.5 text-slate-500 hover:text-primary hover:bg-primary/10 rounded transition-colors"
                             title="Editar"
                           >
                             <Edit2 size={16} />
                           </button>
                           <button 
                             onClick={() => onDeleteTransaction(t.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
                             title="Excluir"
                           >
                             <Trash2 size={16} />
@@ -315,11 +307,11 @@ const Transactions: React.FC<TransactionsProps> = ({
       {/* Modal (Add/Edit) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h3 className="font-semibold text-gray-900">{editingId ? 'Editar Lançamento' : 'Novo Lançamento'}</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
+          <div className="relative bg-surface border border-slate-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
+              <h3 className="font-semibold text-white">{editingId ? 'Editar Lançamento' : 'Novo Lançamento'}</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X size={20} />
               </button>
             </div>
@@ -327,9 +319,9 @@ const Transactions: React.FC<TransactionsProps> = ({
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-gray-700">Tipo</label>
+                    <label className="text-sm font-medium text-slate-400">Tipo</label>
                     <select 
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all text-white"
                         value={formData.type}
                         onChange={e => setFormData({...formData, type: e.target.value as TransactionType})}
                     >
@@ -338,11 +330,11 @@ const Transactions: React.FC<TransactionsProps> = ({
                     </select>
                 </div>
                 <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-gray-700">Data</label>
+                    <label className="text-sm font-medium text-slate-400">Data</label>
                     <input 
                         type="date" 
                         required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all text-white"
                         value={formData.date}
                         onChange={e => setFormData({...formData, date: e.target.value})}
                     />
@@ -350,26 +342,26 @@ const Transactions: React.FC<TransactionsProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Descrição</label>
+                <label className="text-sm font-medium text-slate-400">Descrição</label>
                 <input 
                     type="text" 
                     required
                     placeholder="Ex: Supermercado"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all text-white placeholder-slate-600"
                     value={formData.description}
                     onChange={e => setFormData({...formData, description: e.target.value})}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Valor (R$)</label>
+                <label className="text-sm font-medium text-slate-400">Valor (R$)</label>
                 <input 
                     type="number" 
                     required
                     step="0.01"
                     placeholder="0,00"
-                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-mono font-bold ${
-                        formData.type === TransactionType.DEBIT ? 'text-red-600' : 'text-emerald-600'
+                    className={`w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all font-mono font-bold ${
+                        formData.type === TransactionType.DEBIT ? 'text-rose-500' : 'text-emerald-500'
                     }`}
                     value={formData.value}
                     onChange={e => {
@@ -387,9 +379,9 @@ const Transactions: React.FC<TransactionsProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-gray-700">Banco</label>
+                    <label className="text-sm font-medium text-slate-400">Banco</label>
                     <select 
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all text-white"
                         value={formData.bankId}
                         onChange={e => setFormData({...formData, bankId: Number(e.target.value)})}
                     >
@@ -399,9 +391,9 @@ const Transactions: React.FC<TransactionsProps> = ({
                     </select>
                 </div>
                 <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-gray-700">Categoria</label>
+                    <label className="text-sm font-medium text-slate-400">Categoria</label>
                     <select 
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all text-white"
                         value={formData.categoryId}
                         onChange={e => setFormData({...formData, categoryId: Number(e.target.value)})}
                     >
@@ -416,13 +408,13 @@ const Transactions: React.FC<TransactionsProps> = ({
                 <button 
                     type="button" 
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+                    className="flex-1 px-4 py-2 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800 font-medium transition-colors"
                 >
                     Cancelar
                 </button>
                 <button 
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm shadow-blue-200"
+                    className="flex-1 px-4 py-2 bg-primary text-slate-900 rounded-lg hover:bg-primaryHover font-medium transition-colors shadow-sm shadow-emerald-900/50"
                 >
                     {editingId ? 'Salvar Alterações' : 'Salvar'}
                 </button>
