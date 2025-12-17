@@ -1,130 +1,284 @@
-import React from 'react';
-import { Transaction, Category, TransactionType } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Transaction, Category } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { ChevronLeft, ChevronRight, Filter, Download } from 'lucide-react';
 
 interface ReportsProps {
   transactions: Transaction[];
   categories: Category[];
 }
 
-// Updated Colors for Dark Theme (Neon/Vibrant)
-const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#ef4444'];
+const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
+const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-const Reports: React.FC<ReportsProps> = ({ transactions, categories }) => {
-  
-  // Prepare data for Pie Chart (Expenses by Category)
-  const expensesByCategory = categories
-    .filter(c => c.type === 'despesa')
-    .map(cat => {
-      const total = transactions
-        .filter(t => t.categoryId === cat.id && t.type === TransactionType.DEBIT)
-        .reduce((sum, t) => sum + t.value, 0);
-      return { name: cat.name, value: total };
-    })
-    .filter(item => item.value > 0);
+const Reports: React.FC<ReportsProps> = () => {
+  const [activeTab, setActiveTab] = useState<'cashflow' | 'dre' | 'analysis'>('cashflow');
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(new Date().getMonth());
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<any>(null);
 
-  const monthlyData = [
-    { name: 'Jan', Receita: 4000, Despesa: 2400 },
-    { name: 'Fev', Receita: 3000, Despesa: 1398 },
-    { name: 'Mar', Receita: 2000, Despesa: 9800 },
-    { name: 'Abr', Receita: 2780, Despesa: 3908 },
-    { name: 'Mai', Receita: 1890, Despesa: 4800 },
-    { name: 'Jun', Receita: 2390, Despesa: 3800 },
-  ];
+  // Helper to fetch data based on active tab
+  const fetchData = async () => {
+      setLoading(true);
+      const userId = localStorage.getItem('finance_app_auth') ? JSON.parse(localStorage.getItem('finance_app_auth')!).id : null;
+      if (!userId) return;
+
+      let endpoint = '';
+      if (activeTab === 'cashflow') endpoint = `/api/reports/cash-flow?year=${year}&month=${month}`;
+      if (activeTab === 'dre') endpoint = `/api/reports/dre?year=${year}&month=${month}`;
+      if (activeTab === 'analysis') endpoint = `/api/reports/analysis?year=${year}&month=${month}`;
+
+      try {
+          const res = await fetch(endpoint, {
+              headers: { 'user-id': String(userId) }
+          });
+          if (res.ok) {
+              setData(await res.json());
+          }
+      } catch (error) {
+          console.error(error);
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  useEffect(() => {
+      fetchData();
+  }, [activeTab, year, month]);
+
+  const renderCashFlow = () => {
+      if (!data) return null;
+      
+      const summaryData = [
+          { name: 'Receitas', value: data.totalReceitas },
+          { name: 'Despesas', value: data.totalDespesas }
+      ];
+
+      return (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {/* Cards Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-surface p-4 rounded-xl border border-slate-800">
+                      <p className="text-slate-400 text-sm">Saldo Inicial</p>
+                      <p className="text-xl font-bold text-white">R$ {data.startBalance.toFixed(2)}</p>
+                  </div>
+                  <div className="bg-surface p-4 rounded-xl border border-slate-800">
+                      <p className="text-emerald-400 text-sm">Receitas</p>
+                      <p className="text-xl font-bold text-emerald-500">+ R$ {data.totalReceitas.toFixed(2)}</p>
+                  </div>
+                  <div className="bg-surface p-4 rounded-xl border border-slate-800">
+                      <p className="text-rose-400 text-sm">Despesas</p>
+                      <p className="text-xl font-bold text-rose-500">- R$ {data.totalDespesas.toFixed(2)}</p>
+                  </div>
+                  <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                      <p className="text-sky-400 text-sm">Saldo Final</p>
+                      <p className={`text-xl font-bold ${data.endBalance >= 0 ? 'text-sky-400' : 'text-rose-400'}`}>
+                          R$ {data.endBalance.toFixed(2)}
+                      </p>
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Income Chart */}
+                  <div className="bg-surface p-6 rounded-xl border border-slate-800">
+                      <h3 className="text-white font-semibold mb-4">Receitas por Categoria</h3>
+                      <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                  <Pie data={data.receitasByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} fill="#10b981">
+                                      {data.receitasByCategory.map((_: any, index: number) => (
+                                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                      ))}
+                                  </Pie>
+                                  <Tooltip contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b'}} />
+                                  <Legend />
+                              </PieChart>
+                          </ResponsiveContainer>
+                      </div>
+                  </div>
+
+                  {/* Expense Chart */}
+                  <div className="bg-surface p-6 rounded-xl border border-slate-800">
+                      <h3 className="text-white font-semibold mb-4">Despesas por Categoria</h3>
+                      <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                  <Pie data={data.despesasByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} fill="#ef4444">
+                                      {data.despesasByCategory.map((_: any, index: number) => (
+                                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                      ))}
+                                  </Pie>
+                                  <Tooltip contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b'}} />
+                                  <Legend />
+                              </PieChart>
+                          </ResponsiveContainer>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
+  const renderDRE = () => {
+      if (!data) return null;
+
+      const DreRow = ({ label, value, isTotal = false, isSubtotal = false, indent = false }: any) => (
+          <div className={`flex justify-between items-center py-3 border-b border-slate-800 ${isTotal ? 'bg-slate-900/50 font-bold text-white px-2 rounded' : ''} ${isSubtotal ? 'font-semibold text-slate-200' : 'text-slate-400'}`}>
+              <span className={`${indent ? 'pl-6' : ''}`}>{label}</span>
+              <span className={`${value < 0 ? 'text-rose-500' : (isTotal ? 'text-sky-400' : 'text-slate-200')}`}>
+                  R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
+          </div>
+      );
+
+      return (
+          <div className="bg-surface rounded-xl border border-slate-800 p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
+              <h3 className="text-xl font-bold text-white mb-6 text-center border-b border-slate-800 pb-4">
+                  Demonstração do Resultado do Exercício (Simplificado)
+              </h3>
+              
+              <DreRow label="Receita Bruta de Vendas" value={data.receitaBruta} isSubtotal />
+              <DreRow label="(-) Deduções e Impostos" value={-data.deducoes} indent />
+              <DreRow label="(=) Receita Líquida" value={data.receitaLiquida} isTotal />
+              
+              <div className="h-4"></div>
+              
+              <DreRow label="(-) Custos (CMV/CSP)" value={-data.cmv} indent />
+              <DreRow label="(=) Lucro Bruto" value={data.resultadoBruto} isTotal />
+              
+              <div className="h-4"></div>
+              
+              <DreRow label="(-) Despesas Operacionais" value={-data.despesasOperacionais} indent />
+              <DreRow label="(=) Resultado Operacional" value={data.resultadoOperacional} isTotal />
+              
+              <div className="h-4"></div>
+              
+              <DreRow label="(+/-) Resultado Financeiro" value={data.resultadoFinanceiro} />
+              <DreRow label="(+/-) Resultado Não Operacional" value={data.resultadoNaoOperacional} />
+              
+              <div className="h-4"></div>
+              
+              <DreRow label="(=) Resultado Antes IR/CSLL" value={data.resultadoAntesImpostos} isTotal />
+              <DreRow label="(-) Provisão Impostos" value={-data.impostos} indent />
+              
+              <div className="mt-4 p-4 bg-emerald-900/20 border border-emerald-900/50 rounded-lg flex justify-between items-center">
+                  <span className="text-lg font-bold text-emerald-400">LUCRO / PREJUÍZO LÍQUIDO</span>
+                  <span className={`text-xl font-bold ${data.lucroLiquido >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      R$ {data.lucroLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+              </div>
+          </div>
+      );
+  };
+
+  const renderAnalysis = () => {
+      if (!data) return null;
+
+      const receitaPercent = data.totalReceitas > 0 ? 100 : 0;
+      const despesaPercent = data.totalDespesas > 0 ? (data.totalDespesas / data.totalReceitas) * 100 : 0;
+
+      return (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-surface p-6 rounded-xl border border-slate-800">
+                      <h3 className="text-white font-bold mb-4">Análise de Receitas</h3>
+                      <div className="space-y-3">
+                          {Object.entries(data.receitas).map(([name, value]: any) => (
+                              <div key={name}>
+                                  <div className="flex justify-between text-sm mb-1">
+                                      <span className="text-slate-300">{name}</span>
+                                      <span className="text-emerald-400 font-bold">R$ {value.toFixed(2)}</span>
+                                  </div>
+                                  <div className="w-full bg-slate-800 rounded-full h-2">
+                                      <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${(value / data.totalReceitas) * 100}%` }}></div>
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+
+                  <div className="bg-surface p-6 rounded-xl border border-slate-800">
+                      <h3 className="text-white font-bold mb-4">Análise de Despesas</h3>
+                      <div className="space-y-3">
+                          {Object.entries(data.despesas).map(([name, value]: any) => (
+                              <div key={name}>
+                                  <div className="flex justify-between text-sm mb-1">
+                                      <span className="text-slate-300">{name}</span>
+                                      <span className="text-rose-400 font-bold">R$ {value.toFixed(2)}</span>
+                                  </div>
+                                  <div className="w-full bg-slate-800 rounded-full h-2">
+                                      <div className="bg-rose-500 h-2 rounded-full" style={{ width: `${(value / data.totalDespesas) * 100}%` }}></div>
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+              </div>
+          </div>
+      );
+  };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Relatórios</h1>
-        <p className="text-slate-400">Análise detalhada das suas finanças</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Expenses Pie Chart */}
-        <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
-          <h3 className="font-semibold text-slate-200 mb-6">Despesas por Categoria</h3>
-          <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={expensesByCategory}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={5}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {expensesByCategory.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                    contentStyle={{backgroundColor: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b', color: '#f8fafc'}}
-                />
-                <Legend iconType="circle" />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+      <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Relatórios Financeiros</h1>
+          <p className="text-slate-400">Análise completa da saúde financeira</p>
         </div>
-
-        {/* Income vs Expense Bar Chart */}
-        <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
-          <h3 className="font-semibold text-slate-200 mb-6">Receitas vs Despesas (Semestral)</h3>
-          <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={monthlyData}
-                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8'}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8'}} />
-                <Tooltip 
-                    contentStyle={{backgroundColor: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b', color: '#f8fafc'}}
-                    cursor={{fill: '#1e293b'}} 
-                />
-                <Legend iconType="circle" />
-                <Bar dataKey="Receita" fill="#10b981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Despesa" fill="#ef4444" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        
+        {/* Date Filters */}
+        <div className="flex items-center gap-2 bg-surface p-1 rounded-lg border border-slate-800">
+            <button onClick={() => setMonth(m => m === 0 ? 11 : m - 1)} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
+            <div className="px-4 text-center min-w-[140px]">
+                <span className="block text-xs text-slate-500 font-bold">MÊS DE REFERÊNCIA</span>
+                <span className="block text-sm font-bold text-white">{MONTHS[month]} / {year}</span>
+            </div>
+            <button onClick={() => setMonth(m => m === 11 ? 0 : m + 1)} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={16}/></button>
+            
+            <div className="h-8 w-px bg-slate-800 mx-2"></div>
+            
+            <button onClick={() => setYear(y => y - 1)} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
+            <span className="font-bold text-white px-2">{year}</span>
+            <button onClick={() => setYear(y => y + 1)} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={16}/></button>
         </div>
       </div>
 
-      {/* DRE Simplificado Table */}
-      <div className="bg-surface rounded-xl border border-slate-800 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/30">
-            <h3 className="font-semibold text-slate-200">DRE Simplificado (Mês Atual)</h3>
-        </div>
-        <div className="p-6">
-            <table className="w-full text-sm">
-                <tbody>
-                    <tr className="border-b border-slate-800">
-                        <td className="py-2 text-slate-400">Receita Bruta</td>
-                        <td className="py-2 text-right font-medium text-emerald-500">R$ 15.000,00</td>
-                    </tr>
-                    <tr className="border-b border-slate-800">
-                        <td className="py-2 text-slate-400 pl-4">(-) Impostos</td>
-                        <td className="py-2 text-right text-rose-500">R$ 1.500,00</td>
-                    </tr>
-                    <tr className="border-b border-slate-800 bg-slate-900/50">
-                        <td className="py-2 font-semibold text-slate-200">(=) Receita Líquida</td>
-                        <td className="py-2 text-right font-bold text-slate-200">R$ 13.500,00</td>
-                    </tr>
-                    <tr className="border-b border-slate-800">
-                        <td className="py-2 text-slate-400">(-) Despesas Operacionais</td>
-                        <td className="py-2 text-right text-rose-500">R$ 5.000,00</td>
-                    </tr>
-                    <tr className="bg-sky-900/10">
-                        <td className="py-3 font-bold text-white">(=) Resultado Líquido</td>
-                        <td className="py-3 text-right font-bold text-sky-400">R$ 8.500,00</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+      {/* Report Type Tabs */}
+      <div className="flex gap-1 bg-surface p-1 rounded-xl border border-slate-800 w-full md:w-fit">
+          <button 
+            onClick={() => setActiveTab('cashflow')}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'cashflow' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
+          >
+              Fluxo de Caixa
+          </button>
+          <button 
+            onClick={() => setActiveTab('dre')}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'dre' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
+          >
+              DRE Gerencial
+          </button>
+          <button 
+            onClick={() => setActiveTab('analysis')}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'analysis' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
+          >
+              Análise Detalhada
+          </button>
+      </div>
+
+      {/* Content Area */}
+      <div className="min-h-[400px]">
+          {loading ? (
+              <div className="flex items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+          ) : (
+              <>
+                {activeTab === 'cashflow' && renderCashFlow()}
+                {activeTab === 'dre' && renderDRE()}
+                {activeTab === 'analysis' && renderAnalysis()}
+              </>
+          )}
       </div>
     </div>
   );

@@ -142,7 +142,7 @@ if (!fs.existsSync(BACKUP_DIR)) {
   }
 }
 
-// MUDANÇA: Usando finance_v2.db para garantir novo schema correto
+// Usando finance_v2.db
 const dbPath = fs.existsSync(BACKUP_DIR) ? path.join(BACKUP_DIR, 'finance_v2.db') : './backup/finance_v2.db';
 const db = new sqlite3.Database(dbPath);
 
@@ -276,8 +276,7 @@ app.post('/api/recover-password', (req, res) => {
     });
 });
 
-// GENERIC MIDDLEWARE REPLACEMENT (Check User ID for Data Routes)
-// Since we are using simple header auth for now
+// GENERIC MIDDLEWARE
 const checkAuth = (req, res, next) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -448,7 +447,6 @@ app.delete('/api/ofx-imports/:id', checkAuth, (req, res) => {
     const userId = req.userId;
     db.serialize(() => {
         db.run('BEGIN TRANSACTION');
-        // Delete transactions linked to import AND user
         db.run(`DELETE FROM transactions WHERE ofx_import_id = ? AND user_id = ?`, [importId, userId]);
         db.run(`DELETE FROM ofx_imports WHERE id = ? AND user_id = ?`, [importId, userId], function(err) {
             if (err) {
@@ -543,6 +541,205 @@ app.patch('/api/forecasts/:id/realize', checkAuth, (req, res) => {
      db.run(`UPDATE forecasts SET realized = 1 WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], function(err) {
         if(err) return res.status(500).json({error: err.message});
         res.json({ updated: this.changes });
+    });
+});
+
+// --- ADVANCED REPORTS ENDPOINTS (Ported from Python) ---
+
+app.get('/api/reports/cash-flow', checkAuth, async (req, res) => {
+    const { year, month } = req.query;
+    const y = parseInt(year);
+    const m = month ? parseInt(month) : null;
+    const userId = req.userId;
+
+    try {
+        // 1. Calculate Period
+        let startDate, endDate;
+        if (m !== null) {
+            startDate = new Date(y, m, 1).toISOString().split('T')[0];
+            endDate = new Date(m === 11 ? y + 1 : y, m === 11 ? 0 : m + 1, 1).toISOString().split('T')[0];
+        } else {
+            startDate = new Date(y, 0, 1).toISOString().split('T')[0];
+            endDate = new Date(y + 1, 0, 1).toISOString().split('T')[0];
+        }
+
+        // 2. Calculate Initial Balance (Sum of all tx before start date)
+        // Since we don't have a SaldoInicial table, we sum everything up to startDate
+        const balancePromise = new Promise((resolve, reject) => {
+            db.get(
+                `SELECT SUM(CASE WHEN type = 'credito' THEN value ELSE -value END) as balance 
+                 FROM transactions WHERE user_id = ? AND date < ?`,
+                [userId, startDate],
+                (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row?.balance || 0);
+                }
+            );
+        });
+
+        const startBalance = await balancePromise;
+
+        // 3. Get Transactions in Period
+        db.all(
+            `SELECT t.*, c.name as category_name, c.type as category_type
+             FROM transactions t
+             LEFT JOIN categories c ON t.category_id = c.id
+             WHERE t.user_id = ? AND t.date >= ? AND t.date < ?`,
+            [userId, startDate, endDate],
+            (err, rows) => {
+                if (err) return res.status(500).json({ error: err.message });
+
+                const totalReceitas = rows.filter(r => r.type === 'credito').reduce((sum, r) => sum + r.value, 0);
+                const totalDespesas = rows.filter(r => r.type === 'debito').reduce((sum, r) => sum + r.value, 0);
+                
+                // Group by Category
+                const receitasCat = {};
+                const despesasCat = {};
+
+                rows.forEach(r => {
+                    const catName = r.category_name || 'Sem Categoria';
+                    if (r.type === 'credito') {
+                        receitasCat[catName] = (receitasCat[catName] || 0) + r.value;
+                    } else {
+                        despesasCat[catName] = (despesasCat[catName] || 0) + r.value;
+                    }
+                });
+
+                res.json({
+                    startBalance,
+                    totalReceitas,
+                    totalDespesas,
+                    endBalance: startBalance + totalReceitas - totalDespesas,
+                    receitasByCategory: Object.entries(receitasCat).map(([name, value]) => ({ name, value })),
+                    despesasByCategory: Object.entries(despesasCat).map(([name, value]) => ({ name, value }))
+                });
+            }
+        );
+
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/reports/dre', checkAuth, (req, res) => {
+    const { year, month } = req.query;
+    const userId = req.userId;
+    const y = parseInt(year);
+    const m = month ? parseInt(month) : null;
+
+    let query = `SELECT t.*, c.name as category_name, c.type as category_type 
+                 FROM transactions t 
+                 LEFT JOIN categories c ON t.category_id = c.id 
+                 WHERE t.user_id = ? AND strftime('%Y', t.date) = ?`;
+    
+    const params = [userId, String(y)];
+
+    if (m !== null) {
+        query += ` AND strftime('%m', t.date) = ?`;
+        params.push(String(m + 1).padStart(2, '0'));
+    }
+
+    db.all(query, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const getTotal = (terms, type = 'despesa') => {
+            const termsLower = terms.map(t => t.toLowerCase());
+            return rows
+                .filter(r => {
+                    const catName = (r.category_name || '').toLowerCase();
+                    const txType = r.type === 'credito' ? 'receita' : 'despesa'; // Map DB type to report logic type
+                    return txType === type && termsLower.some(term => catName.includes(term));
+                })
+                .reduce((sum, r) => sum + r.value, 0);
+        };
+
+        const receitaBruta = rows
+            .filter(r => r.type === 'credito' && ['Vendas de Mercadorias', 'Prestação de Serviços'].includes(r.category_name))
+            .reduce((sum, r) => sum + r.value, 0);
+
+        const deducoes = getTotal(['imposto', 'devolução'], 'despesa');
+        const receitaLiquida = receitaBruta - deducoes;
+        const cmv = getTotal(['compra de mercadorias', 'matéria-prima'], 'despesa');
+        const resultadoBruto = receitaLiquida - cmv;
+
+        const despesasOperacionais = getTotal([
+            'pessoal', 'terceiros', 'administrativas', 'comerciais',
+            'aluguel', 'manutenção', 'energia', 'telefone'
+        ], 'despesa');
+
+        const resultadoOperacional = resultadoBruto - despesasOperacionais;
+        const receitaFinanceira = getTotal(['financeira'], 'receita');
+        const despesasFinanceiras = getTotal(['financeira', 'juros', 'tarifa'], 'despesa');
+
+        const resultadoFinanceiro = receitaFinanceira - despesasFinanceiras;
+        const receitaNaoOperacional = getTotal(['não operacional'], 'receita');
+        const despesaNaoOperacional = getTotal(['não operacional'], 'despesa');
+
+        const resultadoNaoOperacional = receitaNaoOperacional - despesaNaoOperacional;
+        const impostos = getTotal(['imposto', 'taxa'], 'despesa'); // Assuming Taxes on profit usually separate but simplified here
+
+        const resultadoAntesImpostos = resultadoOperacional + resultadoFinanceiro + resultadoNaoOperacional;
+        const lucroLiquido = resultadoAntesImpostos - impostos;
+
+        res.json({
+            receitaBruta,
+            deducoes,
+            receitaLiquida,
+            cmv,
+            resultadoBruto,
+            despesasOperacionais,
+            resultadoOperacional,
+            resultadoFinanceiro,
+            resultadoNaoOperacional,
+            impostos,
+            lucroLiquido
+        });
+    });
+});
+
+app.get('/api/reports/analysis', checkAuth, (req, res) => {
+    const { year, month } = req.query;
+    const userId = req.userId;
+    const y = parseInt(year);
+    const m = month ? parseInt(month) : null;
+
+    let query = `SELECT t.*, c.name as category_name 
+                 FROM transactions t 
+                 LEFT JOIN categories c ON t.category_id = c.id 
+                 WHERE t.user_id = ? AND strftime('%Y', t.date) = ?`;
+    
+    const params = [userId, String(y)];
+
+    if (m !== null) {
+        query += ` AND strftime('%m', t.date) = ?`;
+        params.push(String(m + 1).padStart(2, '0'));
+    }
+
+    db.all(query, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const receitas = {};
+        const despesas = {};
+        let totalReceitas = 0;
+        let totalDespesas = 0;
+
+        rows.forEach(r => {
+            const catName = r.category_name || 'Outros';
+            if (r.type === 'credito') {
+                receitas[catName] = (receitas[catName] || 0) + r.value;
+                totalReceitas += r.value;
+            } else {
+                despesas[catName] = (despesas[catName] || 0) + r.value;
+                totalDespesas += r.value;
+            }
+        });
+
+        res.json({
+            receitas,
+            despesas,
+            totalReceitas,
+            totalDespesas
+        });
     });
 });
 
