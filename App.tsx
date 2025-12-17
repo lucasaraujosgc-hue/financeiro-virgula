@@ -184,6 +184,26 @@ function App() {
       }
   };
 
+  const handleBatchUpdateTransaction = async (ids: number[], categoryId: number) => {
+     try {
+         const res = await fetch('/api/transactions/batch-update', {
+             method: 'PATCH',
+             headers: getHeaders(),
+             body: JSON.stringify({ transactionIds: ids, categoryId })
+         });
+         
+         if (res.ok) {
+             setTransactions(prev => prev.map(t => 
+                ids.includes(t.id) ? { ...t, categoryId, reconciled: true } : t
+             ));
+         } else {
+             throw new Error("Falha na atualização em lote");
+         }
+     } catch (e) {
+         alert("Erro ao atualizar em lote");
+     }
+  };
+
   const handleDeleteTransaction = async (id: number) => {
     if (confirm('Tem certeza que deseja excluir este lançamento?')) {
         try {
@@ -382,6 +402,7 @@ function App() {
             onEditTransaction={handleEditTransaction}
             onDeleteTransaction={handleDeleteTransaction}
             onReconcile={handleReconcile}
+            onBatchUpdate={handleBatchUpdateTransaction}
           />
         );
       case 'import':

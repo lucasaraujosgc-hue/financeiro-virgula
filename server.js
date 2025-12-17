@@ -390,11 +390,23 @@ app.post('/api/transactions', checkAuth, (req, res) => {
 });
 
 app.put('/api/transactions/:id', checkAuth, (req, res) => {
-  const { date, description, value, type, categoryId, bankId } = req.body;
-  db.run(
-    `UPDATE transactions SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ? WHERE id = ? AND user_id = ?`,
-    [date, description, value, type, categoryId, bankId, req.params.id, req.userId],
-    function(err) {
+  const { date, description, value, type, categoryId, bankId, reconciled } = req.body;
+  
+  // If reconciled is provided, update it, otherwise keep existing logic (or assume app logic handles it)
+  // The user asked to reconcile on edit. So we update the reconciled status if passed.
+  // Standard PUT usually replaces resource.
+  let query = `UPDATE transactions SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ?`;
+  const params = [date, description, value, type, categoryId, bankId];
+  
+  if (reconciled !== undefined) {
+      query += `, reconciled = ?`;
+      params.push(reconciled ? 1 : 0);
+  }
+
+  query += ` WHERE id = ? AND user_id = ?`;
+  params.push(req.params.id, req.userId);
+
+  db.run(query, params, function(err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true });
     }
@@ -412,6 +424,22 @@ app.patch('/api/transactions/:id/reconcile', checkAuth, (req, res) => {
     const { reconciled } = req.body;
     db.run(`UPDATE transactions SET reconciled = ? WHERE id = ? AND user_id = ?`, [reconciled ? 1 : 0, req.params.id, req.userId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
+        res.json({ updated: this.changes });
+    });
+});
+
+app.patch('/api/transactions/batch-update', checkAuth, (req, res) => {
+    const { transactionIds, categoryId } = req.body; // array of ids
+    if (!transactionIds || !Array.isArray(transactionIds) || transactionIds.length === 0) {
+        return res.status(400).json({ error: "Invalid transaction IDs" });
+    }
+
+    const placeholders = transactionIds.map(() => '?').join(',');
+    const sql = `UPDATE transactions SET category_id = ?, reconciled = 1 WHERE id IN (${placeholders}) AND user_id = ?`;
+    const params = [categoryId, ...transactionIds, req.userId];
+
+    db.run(sql, params, function(err) {
+        if(err) return res.status(500).json({ error: err.message });
         res.json({ updated: this.changes });
     });
 });
