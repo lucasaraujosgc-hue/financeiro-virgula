@@ -23,6 +23,8 @@ const Transactions: React.FC<TransactionsProps> = ({
   
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<number | 'all'>('all');
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -77,8 +79,9 @@ const Transactions: React.FC<TransactionsProps> = ({
     
     const matchesSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === 'all' || t.type === typeFilter;
+    const matchesCategory = categoryFilter === 'all' || t.categoryId === categoryFilter;
 
-    return yearMatch && monthMatch && bankMatch && matchesSearch && matchesType;
+    return yearMatch && monthMatch && bankMatch && matchesSearch && matchesType && matchesCategory;
   });
 
   const totalIncome = filteredTransactions.filter(t => t.type === TransactionType.CREDIT).reduce((a, b) => a + b.value, 0);
@@ -277,7 +280,22 @@ const Transactions: React.FC<TransactionsProps> = ({
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+        
         <div className="h-6 w-px bg-slate-700"></div>
+
+        <select 
+            className="bg-transparent text-sm text-slate-400 outline-none max-w-[200px]"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+        >
+            <option value="all">Todas as categorias</option>
+            {categories.sort((a, b) => a.name.localeCompare(b.name)).map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+        </select>
+
+        <div className="h-6 w-px bg-slate-700"></div>
+        
         <select 
             className="bg-transparent text-sm text-slate-400 outline-none"
             value={typeFilter}
