@@ -21,6 +21,7 @@ const Reports: React.FC<ReportsProps> = () => {
   // Helper to fetch data based on active tab
   const fetchData = async () => {
       setLoading(true);
+      setData(null); // Clear data immediately to avoid stale render crash
       const userId = localStorage.getItem('finance_app_auth') ? JSON.parse(localStorage.getItem('finance_app_auth')!).id : null;
       if (!userId) return;
 
@@ -48,13 +49,9 @@ const Reports: React.FC<ReportsProps> = () => {
   }, [activeTab, year, month]);
 
   const renderCashFlow = () => {
-      if (!data) return null;
+      // Validate correct data shape for Cashflow
+      if (!data || typeof data.totalReceitas === 'undefined') return null;
       
-      const summaryData = [
-          { name: 'Receitas', value: data.totalReceitas },
-          { name: 'Despesas', value: data.totalDespesas }
-      ];
-
       return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* Cards Summary */}
@@ -121,13 +118,14 @@ const Reports: React.FC<ReportsProps> = () => {
   };
 
   const renderDRE = () => {
-      if (!data) return null;
+      // Validate correct data shape for DRE
+      if (!data || typeof data.receitaBruta === 'undefined') return null;
 
       const DreRow = ({ label, value, isTotal = false, isSubtotal = false, indent = false }: any) => (
           <div className={`flex justify-between items-center py-3 border-b border-slate-800 ${isTotal ? 'bg-slate-900/50 font-bold text-white px-2 rounded' : ''} ${isSubtotal ? 'font-semibold text-slate-200' : 'text-slate-400'}`}>
               <span className={`${indent ? 'pl-6' : ''}`}>{label}</span>
-              <span className={`${value < 0 ? 'text-rose-500' : (isTotal ? 'text-sky-400' : 'text-slate-200')}`}>
-                  R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              <span className={`${(value || 0) < 0 ? 'text-rose-500' : (isTotal ? 'text-sky-400' : 'text-slate-200')}`}>
+                  R$ {(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </span>
           </div>
       );
@@ -164,8 +162,8 @@ const Reports: React.FC<ReportsProps> = () => {
               
               <div className="mt-4 p-4 bg-emerald-900/20 border border-emerald-900/50 rounded-lg flex justify-between items-center">
                   <span className="text-lg font-bold text-emerald-400">LUCRO / PREJUÍZO LÍQUIDO</span>
-                  <span className={`text-xl font-bold ${data.lucroLiquido >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      R$ {data.lucroLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  <span className={`text-xl font-bold ${(data.lucroLiquido || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      R$ {(data.lucroLiquido || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
               </div>
           </div>
@@ -173,10 +171,8 @@ const Reports: React.FC<ReportsProps> = () => {
   };
 
   const renderAnalysis = () => {
-      if (!data) return null;
-
-      const receitaPercent = data.totalReceitas > 0 ? 100 : 0;
-      const despesaPercent = data.totalDespesas > 0 ? (data.totalDespesas / data.totalReceitas) * 100 : 0;
+      // Validate correct data shape for Analysis
+      if (!data || !data.receitas) return null;
 
       return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -247,19 +243,19 @@ const Reports: React.FC<ReportsProps> = () => {
       {/* Report Type Tabs */}
       <div className="flex gap-1 bg-surface p-1 rounded-xl border border-slate-800 w-full md:w-fit">
           <button 
-            onClick={() => setActiveTab('cashflow')}
+            onClick={() => { setActiveTab('cashflow'); setData(null); }}
             className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'cashflow' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
           >
               Fluxo de Caixa
           </button>
           <button 
-            onClick={() => setActiveTab('dre')}
+            onClick={() => { setActiveTab('dre'); setData(null); }}
             className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'dre' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
           >
               DRE Gerencial
           </button>
           <button 
-            onClick={() => setActiveTab('analysis')}
+            onClick={() => { setActiveTab('analysis'); setData(null); }}
             className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'analysis' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
           >
               Análise Detalhada

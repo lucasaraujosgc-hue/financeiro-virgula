@@ -126,7 +126,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
 
             {/* Relatórios */}
             <div>
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">Relatórios</div>
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">Análises</div>
                 <div className="space-y-1">
                     <button
                         onClick={() => { onTabChange('reports'); setIsMobileMenuOpen(false); }}
@@ -134,26 +134,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                             ${activeTab === 'reports' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                         `}
                     >
-                        <Calculator size={18} />
-                        Fluxo de Caixa
-                    </button>
-                    <button
-                        onClick={() => { onTabChange('reports'); setIsMobileMenuOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                           text-slate-400 hover:text-white hover:bg-slate-800
-                        `}
-                    >
-                        <Scale size={18} />
-                        DRE Simplificado
-                    </button>
-                    <button
-                        onClick={() => { onTabChange('reports'); setIsMobileMenuOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                           text-slate-400 hover:text-white hover:bg-slate-800
-                        `}
-                    >
                         <PieChart size={18} />
-                        Análises e Indicadores
+                        Relatórios Financeiros
                     </button>
                 </div>
             </div>
