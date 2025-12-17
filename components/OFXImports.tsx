@@ -3,11 +3,12 @@ import { Bank, OFXImport, Transaction, TransactionType } from '../types';
 import { FileUp, Trash2, Calendar, Database, FileSpreadsheet } from 'lucide-react';
 
 interface OFXImportsProps {
+  userId: number;
   banks: Bank[];
   onTransactionsImported: () => void; // Callback to refresh transaction list in App
 }
 
-const OFXImports: React.FC<OFXImportsProps> = ({ banks, onTransactionsImported }) => {
+const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, onTransactionsImported }) => {
   const [imports, setImports] = useState<OFXImport[]>([]);
   const [importConfig, setImportConfig] = useState({
     bankId: banks[0]?.id || 0,
@@ -16,10 +17,15 @@ const OFXImports: React.FC<OFXImportsProps> = ({ banks, onTransactionsImported }
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const getHeaders = () => ({
+      'Content-Type': 'application/json',
+      'user-id': String(userId)
+  });
+
   // Load Imports History
   useEffect(() => {
       fetchImports();
-  }, []);
+  }, [userId]);
 
   // Update default bank ID
   useEffect(() => {
@@ -30,7 +36,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ banks, onTransactionsImported }
 
   const fetchImports = async () => {
       try {
-          const res = await fetch('/api/ofx-imports');
+          const res = await fetch('/api/ofx-imports', { headers: getHeaders() });
           if (res.ok) setImports(await res.json());
       } catch (e) {
           console.error(e);
@@ -84,7 +90,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ banks, onTransactionsImported }
           try {
               const resImport = await fetch('/api/ofx-imports', {
                   method: 'POST',
-                  headers: {'Content-Type': 'application/json'},
+                  headers: getHeaders(),
                   body: JSON.stringify({
                       fileName: file.name,
                       importDate: new Date().toISOString(),
@@ -98,7 +104,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ banks, onTransactionsImported }
               for (const tx of transactionsToAdd) {
                    await fetch('/api/transactions', {
                        method: 'POST',
-                       headers: {'Content-Type': 'application/json'},
+                       headers: getHeaders(),
                        body: JSON.stringify({ ...tx, ofxImportId: importData.id })
                    });
               }
@@ -121,7 +127,10 @@ const OFXImports: React.FC<OFXImportsProps> = ({ banks, onTransactionsImported }
   const handleDeleteImport = async (id: number) => {
       if(confirm('ATENÇÃO: Excluir esta importação irá apagar TODOS os lançamentos financeiros vinculados a ela. Deseja continuar?')) {
           try {
-              const res = await fetch(`/api/ofx-imports/${id}`, { method: 'DELETE' });
+              const res = await fetch(`/api/ofx-imports/${id}`, { 
+                  method: 'DELETE',
+                  headers: getHeaders()
+              });
               if (res.ok) {
                   setImports(prev => prev.filter(i => i.id !== id));
                   onTransactionsImported(); // Refresh main list

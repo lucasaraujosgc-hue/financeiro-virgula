@@ -4,6 +4,7 @@ import { ArrowUpCircle, ArrowDownCircle, Wallet, AlertCircle, CheckCircle2, Tren
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardProps {
+  userId: number;
   transactions: Transaction[];
   banks: Bank[];
   forecasts: Forecast[];
@@ -11,7 +12,7 @@ interface DashboardProps {
   onRefresh: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts, categories, onRefresh }) => {
+const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, forecasts, categories, onRefresh }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
       description: '',
@@ -28,6 +29,11 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts, c
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
   const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+  const getHeaders = () => ({
+      'Content-Type': 'application/json',
+      'user-id': String(userId)
+  });
 
   // Initialize form when opening modal
   const openModal = (type: TransactionType) => {
@@ -78,7 +84,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts, c
 
                   await fetch('/api/transactions', {
                        method: 'POST',
-                       headers: {'Content-Type': 'application/json'},
+                       headers: getHeaders(),
                        body: JSON.stringify({
                            date: dateStr,
                            description: formData.description + descSuffix,
@@ -106,7 +112,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, forecasts, c
 
                    await fetch('/api/forecasts', {
                       method: 'POST',
-                      headers: {'Content-Type': 'application/json'},
+                      headers: getHeaders(),
                       body: JSON.stringify(payload)
                   });
               }

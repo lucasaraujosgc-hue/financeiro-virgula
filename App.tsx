@@ -40,10 +40,10 @@ function App() {
 
   // Fetch Core Data on Auth
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user?.id) {
         fetchInitialData();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   // Derived state updates (Balances)
   useEffect(() => {
@@ -62,6 +62,13 @@ function App() {
     }
   }, [transactions.length]); 
 
+  const getHeaders = () => {
+    return {
+        'Content-Type': 'application/json',
+        'user-id': String(user?.id || '')
+    };
+  };
+
   const fetchInitialData = async () => {
       await Promise.all([
           fetchBanks(),
@@ -73,21 +80,21 @@ function App() {
 
   const fetchBanks = async () => {
       try {
-          const res = await fetch('/api/banks');
+          const res = await fetch('/api/banks', { headers: getHeaders() });
           if (res.ok) setBanks(await res.json());
       } catch (e) { console.error(e) }
   };
 
   const fetchCategories = async () => {
       try {
-          const res = await fetch('/api/categories');
+          const res = await fetch('/api/categories', { headers: getHeaders() });
           if (res.ok) setCategories(await res.json());
       } catch (e) { console.error(e) }
   };
 
   const fetchTransactions = async () => {
     try {
-        const res = await fetch('/api/transactions');
+        const res = await fetch('/api/transactions', { headers: getHeaders() });
         if (res.ok) {
             const data = await res.json();
             setTransactions(data);
@@ -99,7 +106,7 @@ function App() {
 
   const fetchForecasts = async () => {
     try {
-        const res = await fetch('/api/forecasts');
+        const res = await fetch('/api/forecasts', { headers: getHeaders() });
         if (res.ok) {
             setForecasts(await res.json());
         }
@@ -112,7 +119,7 @@ function App() {
       try {
           const res = await fetch('/api/categories', {
               method: 'POST',
-              headers: {'Content-Type': 'application/json'},
+              headers: getHeaders(),
               body: JSON.stringify(category)
           });
           if (res.ok) {
@@ -127,7 +134,10 @@ function App() {
   const handleDeleteCategory = async (id: number) => {
       if(confirm('Deseja excluir esta categoria?')) {
           try {
-              const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+              const res = await fetch(`/api/categories/${id}`, { 
+                  method: 'DELETE',
+                  headers: getHeaders() 
+              });
               if (res.ok) {
                   setCategories(prev => prev.filter(c => c.id !== id));
               }
@@ -141,7 +151,7 @@ function App() {
     try {
         const res = await fetch('/api/transactions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify(newTx)
         });
         if (res.ok) {
@@ -156,7 +166,10 @@ function App() {
   const handleDeleteTransaction = async (id: number) => {
     if (confirm('Tem certeza que deseja excluir este lançamento?')) {
         try {
-            await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
+            await fetch(`/api/transactions/${id}`, { 
+                method: 'DELETE',
+                headers: getHeaders()
+            });
             setTransactions(prev => prev.filter(t => t.id !== id));
         } catch (error) {
             alert("Erro ao excluir");
@@ -171,7 +184,7 @@ function App() {
     try {
         await fetch(`/api/transactions/${id}/reconcile`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({ reconciled: !tx.reconciled })
         });
         setTransactions(prev => prev.map(t => 
@@ -186,7 +199,7 @@ function App() {
       try {
           await fetch(`/api/banks/${updatedBank.id}`, {
               method: 'PUT',
-              headers: {'Content-Type': 'application/json'},
+              headers: getHeaders(),
               body: JSON.stringify(updatedBank)
           });
           setBanks(prev => prev.map(b => b.id === updatedBank.id ? updatedBank : b));
@@ -199,7 +212,7 @@ function App() {
       try {
           const res = await fetch('/api/banks', {
               method: 'POST',
-              headers: {'Content-Type': 'application/json'},
+              headers: getHeaders(),
               body: JSON.stringify(newBank)
           });
           if (res.ok) {
@@ -213,7 +226,10 @@ function App() {
 
   const handleDeleteBank = async (id: number) => {
       try {
-          const res = await fetch(`/api/banks/${id}`, { method: 'DELETE' });
+          const res = await fetch(`/api/banks/${id}`, { 
+              method: 'DELETE',
+              headers: getHeaders()
+          });
           if(res.ok) {
               setBanks(prev => prev.filter(b => b.id !== id));
           }
@@ -229,6 +245,10 @@ function App() {
           setActiveTab('dashboard');
           setUser(null);
           localStorage.removeItem('finance_app_auth');
+          setBanks([]);
+          setTransactions([]);
+          setCategories([]);
+          setForecasts([]);
       }
   };
 
@@ -322,6 +342,7 @@ function App() {
       case 'dashboard':
         return (
           <Dashboard 
+            userId={user.id}
             transactions={transactions} 
             banks={banks.filter(b => b.active)} 
             forecasts={forecasts}
@@ -332,6 +353,7 @@ function App() {
       case 'transactions':
         return (
           <Transactions 
+            userId={user.id}
             transactions={transactions} 
             banks={banks.filter(b => b.active)}
             categories={categories}
@@ -341,7 +363,7 @@ function App() {
           />
         );
       case 'import':
-        return <OFXImports banks={banks.filter(b => b.active)} onTransactionsImported={fetchTransactions} />;
+        return <OFXImports userId={user.id} banks={banks.filter(b => b.active)} onTransactionsImported={fetchTransactions} />;
       case 'banks':
         return (
             <BankList 
@@ -362,9 +384,9 @@ function App() {
       case 'reports':
         return <Reports transactions={transactions} categories={categories} />;
       case 'forecasts':
-        return <Forecasts banks={banks.filter(b => b.active)} categories={categories} />;
+        return <Forecasts userId={user.id} banks={banks.filter(b => b.active)} categories={categories} />;
       default:
-        return <Dashboard transactions={transactions} banks={banks} forecasts={forecasts} categories={categories} onRefresh={fetchInitialData} />;
+        return <Dashboard userId={user.id} transactions={transactions} banks={banks} forecasts={forecasts} categories={categories} onRefresh={fetchInitialData} />;
     }
   };
 

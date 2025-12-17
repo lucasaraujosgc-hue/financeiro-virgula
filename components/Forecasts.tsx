@@ -3,11 +3,12 @@ import { Bank, Category, Forecast, TransactionType, CategoryType } from '../type
 import { ChevronLeft, ChevronRight, Plus, Check, Trash2, CalendarDays, Edit2, Repeat, Infinity, X } from 'lucide-react';
 
 interface ForecastsProps {
+  userId: number;
   banks: Bank[];
   categories: Category[];
 }
 
-const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
+const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
   const [forecasts, setForecasts] = useState<Forecast[]>([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11
@@ -33,13 +34,18 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
 
   const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
+  const getHeaders = () => ({
+      'Content-Type': 'application/json',
+      'user-id': String(userId)
+  });
+
   useEffect(() => {
     fetchForecasts();
-  }, []);
+  }, [userId]); // Refetch if user changes
 
   const fetchForecasts = async () => {
     try {
-        const res = await fetch('/api/forecasts');
+        const res = await fetch('/api/forecasts', { headers: getHeaders() });
         if (res.ok) setForecasts(await res.json());
     } catch (e) {
         console.error(e);
@@ -69,7 +75,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
         // Edit Mode (Simple Update)
          await fetch(`/api/forecasts/${editingId}`, {
             method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
+            headers: getHeaders(),
             body: JSON.stringify({
                 date: formData.date,
                 description: formData.description,
@@ -105,7 +111,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
 
             await fetch('/api/forecasts', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: getHeaders(),
                 body: JSON.stringify(payload)
             });
         }
@@ -124,7 +130,10 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
   const confirmDelete = async (mode: 'single' | 'all' | 'future') => {
       if (!deleteModal.id) return;
       
-      await fetch(`/api/forecasts/${deleteModal.id}?mode=${mode}`, { method: 'DELETE' });
+      await fetch(`/api/forecasts/${deleteModal.id}?mode=${mode}`, { 
+          method: 'DELETE',
+          headers: getHeaders()
+      });
       setDeleteModal({ isOpen: false, id: null });
       fetchForecasts();
   };
@@ -132,7 +141,10 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
   const handleRealize = async (id: number) => {
       if(confirm('Confirmar realização desta previsão? Ela será movida para Lançamentos.')) {
            // Mark as realized in Forecast
-           await fetch(`/api/forecasts/${id}/realize`, { method: 'PATCH' });
+           await fetch(`/api/forecasts/${id}/realize`, { 
+               method: 'PATCH',
+               headers: getHeaders()
+            });
            
            // Create actual transaction
            const forecast = forecasts.find(f => f.id === id);
@@ -143,7 +155,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ banks, categories }) => {
 
                await fetch('/api/transactions', {
                    method: 'POST',
-                   headers: {'Content-Type': 'application/json'},
+                   headers: getHeaders(),
                    body: JSON.stringify({
                        date: forecast.date,
                        description: forecast.description + descSuffix,

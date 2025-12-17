@@ -3,6 +3,7 @@ import { Transaction, TransactionType, Bank, Category, CategoryType } from '../t
 import { Search, Plus, Trash2, Check, X, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
 
 interface TransactionsProps {
+  userId: number;
   transactions: Transaction[];
   banks: Bank[];
   categories: Category[];
@@ -12,7 +13,7 @@ interface TransactionsProps {
 }
 
 const Transactions: React.FC<TransactionsProps> = ({ 
-  transactions, banks, categories, onAddTransaction, onDeleteTransaction, onReconcile 
+  userId, transactions, banks, categories, onAddTransaction, onDeleteTransaction, onReconcile 
 }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11
@@ -33,6 +34,11 @@ const Transactions: React.FC<TransactionsProps> = ({
     type: TransactionType.DEBIT,
     bankId: banks[0]?.id || 0,
     categoryId: 0, 
+  });
+
+  const getHeaders = () => ({
+      'Content-Type': 'application/json',
+      'user-id': String(userId)
   });
 
   // Reset/Set defaults
@@ -101,17 +107,9 @@ const Transactions: React.FC<TransactionsProps> = ({
         try {
             await fetch(`/api/transactions/${editingId}`, {
                 method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
+                headers: getHeaders(),
                 body: JSON.stringify(payload)
             });
-            // Force refresh logic is currently handled by parent re-fetching in a real app,
-            // or we simulate it here. But in App.tsx `onAddTransaction` only adds. 
-            // We need to trigger a refresh. Since onAddTransaction just adds to state,
-            // we will need to reload page or use a refresh callback. 
-            // For now, we will assume App will fetch or we reload.
-            // A quick hack for this structure is calling `onAddTransaction` with a special flag or just refreshing window.
-            // Better: Pass a refresh callback prop. But let's reuse `onAddTransaction` to trigger a fetch in App if possible,
-            // or simply reload.
             window.location.reload(); 
         } catch (error) {
             alert("Erro ao editar");

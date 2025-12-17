@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import nodemailer from 'nodemailer';
 
-// Mock Data Imports for Seeding
+// Mock Data Imports for Seeding (Used per user now)
 const INITIAL_BANKS_SEED = [
   { name: 'Nubank', accountNumber: '1234-5', nickname: 'Principal', logo: '/nubank.jpg', active: 0, balance: 0 },
   { name: 'Itaú', accountNumber: '9876-0', nickname: 'Reserva', logo: '/itau.png', active: 0, balance: 0 },
@@ -76,9 +76,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Configuração de Email
-// Lógica para porta 587 (STARTTLS) vs 465 (SSL/TLS Implícito)
 const mailPort = Number(process.env.MAIL_PORT) || 587;
-const mailSecure = mailPort === 465 ? true : false; // Força false para 587, pois usa STARTTLS
+const mailSecure = mailPort === 465 ? true : false; 
 
 const transporter = nodemailer.createTransport({
     host: process.env.MAIL_SERVER,
@@ -123,6 +122,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
 
+// Middleware para validar userId
+const getUserId = (req) => {
+    const userId = req.headers['user-id'];
+    return userId ? Number(userId) : null;
+};
+
 // Database Setup
 const BACKUP_DIR = '/backup';
 if (!fs.existsSync(BACKUP_DIR)) {
@@ -152,60 +157,43 @@ db.serialize(() => {
     phone TEXT
   )`);
 
-  // Banks
+  // Banks (Added user_id)
   db.run(`CREATE TABLE IF NOT EXISTS banks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     name TEXT,
     account_number TEXT,
     nickname TEXT,
     logo TEXT,
     active INTEGER,
-    balance REAL
-  )`, () => {
-      // Seed Banks if empty
-      db.get("SELECT count(*) as count FROM banks", [], (err, row) => {
-          if (row && row.count === 0) {
-              console.log("Seeding Banks...");
-              const stmt = db.prepare("INSERT INTO banks (name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, ?, ?)");
-              INITIAL_BANKS_SEED.forEach(b => {
-                  stmt.run(b.name, b.accountNumber, b.nickname, b.logo, b.active, b.balance);
-              });
-              stmt.finalize();
-          }
-      });
-  });
+    balance REAL,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  )`);
 
-  // Categories
+  // Categories (Added user_id)
   db.run(`CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     name TEXT,
-    type TEXT
-  )`, () => {
-      // Seed Categories if empty
-      db.get("SELECT count(*) as count FROM categories", [], (err, row) => {
-          if (row && row.count === 0) {
-              console.log("Seeding Categories...");
-              const stmt = db.prepare("INSERT INTO categories (name, type) VALUES (?, ?)");
-              INITIAL_CATEGORIES_SEED.forEach(c => {
-                  stmt.run(c.name, c.type);
-              });
-              stmt.finalize();
-          }
-      });
-  });
+    type TEXT,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  )`);
 
-  // OFX
+  // OFX (Added user_id)
   db.run(`CREATE TABLE IF NOT EXISTS ofx_imports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     file_name TEXT,
     import_date TEXT,
     bank_id INTEGER,
-    transaction_count INTEGER
+    transaction_count INTEGER,
+    FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 
-  // Transactions
+  // Transactions (Added user_id)
   db.run(`CREATE TABLE IF NOT EXISTS transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     date TEXT,
     description TEXT,
     value REAL,
@@ -213,12 +201,14 @@ db.serialize(() => {
     category_id INTEGER,
     bank_id INTEGER,
     reconciled INTEGER,
-    ofx_import_id INTEGER
+    ofx_import_id INTEGER,
+    FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 
-  // Forecasts
+  // Forecasts (Added user_id)
   db.run(`CREATE TABLE IF NOT EXISTS forecasts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     date TEXT,
     description TEXT,
     value REAL,
@@ -228,7 +218,8 @@ db.serialize(() => {
     realized INTEGER,
     installment_current INTEGER,
     installment_total INTEGER,
-    group_id TEXT
+    group_id TEXT,
+    FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 });
 
@@ -242,8 +233,24 @@ app.post('/api/signup', (req, res) => {
     [email, password, cnpj, razaoSocial, phone],
     async function(err) {
       if (err) return res.status(500).json({ error: err.message });
+      
+      const newUserId = this.lastID;
+
+      // Seed Initial Data for THIS user
+      const bankStmt = db.prepare("INSERT INTO banks (user_id, name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, ?, ?, ?)");
+      INITIAL_BANKS_SEED.forEach(b => {
+          bankStmt.run(newUserId, b.name, b.accountNumber, b.nickname, b.logo, b.active, b.balance);
+      });
+      bankStmt.finalize();
+
+      const catStmt = db.prepare("INSERT INTO categories (user_id, name, type) VALUES (?, ?, ?)");
+      INITIAL_CATEGORIES_SEED.forEach(c => {
+          catStmt.run(newUserId, c.name, c.type);
+      });
+      catStmt.finalize();
+
       await sendEmail(email, "Bem-vindo ao Sistema Financeiro", "Seu cadastro foi realizado com sucesso.");
-      res.json({ id: this.lastID, email, razaoSocial });
+      res.json({ id: newUserId, email, razaoSocial });
     }
   );
 });
@@ -268,9 +275,18 @@ app.post('/api/recover-password', (req, res) => {
     });
 });
 
+// GENERIC MIDDLEWARE REPLACEMENT (Check User ID for Data Routes)
+// Since we are using simple header auth for now
+const checkAuth = (req, res, next) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    req.userId = userId;
+    next();
+};
+
 // BANKS
-app.get('/api/banks', (req, res) => {
-    db.all(`SELECT * FROM banks`, [], (err, rows) => {
+app.get('/api/banks', checkAuth, (req, res) => {
+    db.all(`SELECT * FROM banks WHERE user_id = ?`, [req.userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows.map(b => ({
             id: b.id,
@@ -284,11 +300,11 @@ app.get('/api/banks', (req, res) => {
     });
 });
 
-app.post('/api/banks', (req, res) => {
+app.post('/api/banks', checkAuth, (req, res) => {
     const { name, accountNumber, nickname, logo } = req.body;
     db.run(
-        `INSERT INTO banks (name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, 1, 0)`,
-        [name, accountNumber, nickname, logo],
+        `INSERT INTO banks (user_id, name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, ?, 1, 0)`,
+        [req.userId, name, accountNumber, nickname, logo],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ id: this.lastID, name, accountNumber, nickname, logo, active: true, balance: 0 });
@@ -296,11 +312,11 @@ app.post('/api/banks', (req, res) => {
     );
 });
 
-app.put('/api/banks/:id', (req, res) => {
+app.put('/api/banks/:id', checkAuth, (req, res) => {
     const { nickname, accountNumber, active } = req.body;
     db.run(
-        `UPDATE banks SET nickname = ?, account_number = ?, active = ? WHERE id = ?`,
-        [nickname, accountNumber, active ? 1 : 0, req.params.id],
+        `UPDATE banks SET nickname = ?, account_number = ?, active = ? WHERE id = ? AND user_id = ?`,
+        [nickname, accountNumber, active ? 1 : 0, req.params.id, req.userId],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ success: true });
@@ -308,26 +324,26 @@ app.put('/api/banks/:id', (req, res) => {
     );
 });
 
-app.delete('/api/banks/:id', (req, res) => {
-    db.run(`DELETE FROM banks WHERE id = ?`, [req.params.id], function(err) {
+app.delete('/api/banks/:id', checkAuth, (req, res) => {
+    db.run(`DELETE FROM banks WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ deleted: this.changes });
     });
 });
 
 // CATEGORIES
-app.get('/api/categories', (req, res) => {
-    db.all(`SELECT * FROM categories`, [], (err, rows) => {
+app.get('/api/categories', checkAuth, (req, res) => {
+    db.all(`SELECT * FROM categories WHERE user_id = ?`, [req.userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
 });
 
-app.post('/api/categories', (req, res) => {
+app.post('/api/categories', checkAuth, (req, res) => {
     const { name, type } = req.body;
     db.run(
-        `INSERT INTO categories (name, type) VALUES (?, ?)`,
-        [name, type],
+        `INSERT INTO categories (user_id, name, type) VALUES (?, ?, ?)`,
+        [req.userId, name, type],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ id: this.lastID, name, type });
@@ -335,16 +351,16 @@ app.post('/api/categories', (req, res) => {
     );
 });
 
-app.delete('/api/categories/:id', (req, res) => {
-    db.run(`DELETE FROM categories WHERE id = ?`, [req.params.id], function(err) {
+app.delete('/api/categories/:id', checkAuth, (req, res) => {
+    db.run(`DELETE FROM categories WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ deleted: this.changes });
     });
 });
 
 // TRANSACTIONS
-app.get('/api/transactions', (req, res) => {
-  db.all(`SELECT * FROM transactions ORDER BY date DESC`, [], (err, rows) => {
+app.get('/api/transactions', checkAuth, (req, res) => {
+  db.all(`SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC`, [req.userId], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     const transactions = rows.map(t => ({
       id: t.id,
@@ -361,11 +377,11 @@ app.get('/api/transactions', (req, res) => {
   });
 });
 
-app.post('/api/transactions', (req, res) => {
+app.post('/api/transactions', checkAuth, (req, res) => {
   const { date, description, value, type, categoryId, bankId, reconciled, ofxImportId } = req.body;
   db.run(
-    `INSERT INTO transactions (date, description, value, type, category_id, bank_id, reconciled, ofx_import_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [date, description, value, type, categoryId, bankId, reconciled ? 1 : 0, ofxImportId || null],
+    `INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, reconciled, ofx_import_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [req.userId, date, description, value, type, categoryId, bankId, reconciled ? 1 : 0, ofxImportId || null],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ id: this.lastID, ...req.body });
@@ -373,11 +389,11 @@ app.post('/api/transactions', (req, res) => {
   );
 });
 
-app.put('/api/transactions/:id', (req, res) => {
+app.put('/api/transactions/:id', checkAuth, (req, res) => {
   const { date, description, value, type, categoryId, bankId } = req.body;
   db.run(
-    `UPDATE transactions SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ? WHERE id = ?`,
-    [date, description, value, type, categoryId, bankId, req.params.id],
+    `UPDATE transactions SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ? WHERE id = ? AND user_id = ?`,
+    [date, description, value, type, categoryId, bankId, req.params.id, req.userId],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true });
@@ -385,24 +401,24 @@ app.put('/api/transactions/:id', (req, res) => {
   );
 });
 
-app.delete('/api/transactions/:id', (req, res) => {
-    db.run(`DELETE FROM transactions WHERE id = ?`, [req.params.id], function(err) {
+app.delete('/api/transactions/:id', checkAuth, (req, res) => {
+    db.run(`DELETE FROM transactions WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ deleted: this.changes });
     });
 });
 
-app.patch('/api/transactions/:id/reconcile', (req, res) => {
+app.patch('/api/transactions/:id/reconcile', checkAuth, (req, res) => {
     const { reconciled } = req.body;
-    db.run(`UPDATE transactions SET reconciled = ? WHERE id = ?`, [reconciled ? 1 : 0, req.params.id], function(err) {
+    db.run(`UPDATE transactions SET reconciled = ? WHERE id = ? AND user_id = ?`, [reconciled ? 1 : 0, req.params.id, req.userId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ updated: this.changes });
     });
 });
 
 // OFX IMPORTS
-app.get('/api/ofx-imports', (req, res) => {
-    db.all(`SELECT * FROM ofx_imports ORDER BY import_date DESC`, [], (err, rows) => {
+app.get('/api/ofx-imports', checkAuth, (req, res) => {
+    db.all(`SELECT * FROM ofx_imports WHERE user_id = ? ORDER BY import_date DESC`, [req.userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows.map(r => ({
             id: r.id,
@@ -414,11 +430,11 @@ app.get('/api/ofx-imports', (req, res) => {
     });
 });
 
-app.post('/api/ofx-imports', (req, res) => {
+app.post('/api/ofx-imports', checkAuth, (req, res) => {
     const { fileName, importDate, bankId, transactionCount } = req.body;
     db.run(
-        `INSERT INTO ofx_imports (file_name, import_date, bank_id, transaction_count) VALUES (?, ?, ?, ?)`,
-        [fileName, importDate, bankId, transactionCount],
+        `INSERT INTO ofx_imports (user_id, file_name, import_date, bank_id, transaction_count) VALUES (?, ?, ?, ?, ?)`,
+        [req.userId, fileName, importDate, bankId, transactionCount],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ id: this.lastID });
@@ -426,12 +442,14 @@ app.post('/api/ofx-imports', (req, res) => {
     );
 });
 
-app.delete('/api/ofx-imports/:id', (req, res) => {
+app.delete('/api/ofx-imports/:id', checkAuth, (req, res) => {
     const importId = req.params.id;
+    const userId = req.userId;
     db.serialize(() => {
         db.run('BEGIN TRANSACTION');
-        db.run(`DELETE FROM transactions WHERE ofx_import_id = ?`, [importId]);
-        db.run(`DELETE FROM ofx_imports WHERE id = ?`, [importId], function(err) {
+        // Delete transactions linked to import AND user
+        db.run(`DELETE FROM transactions WHERE ofx_import_id = ? AND user_id = ?`, [importId, userId]);
+        db.run(`DELETE FROM ofx_imports WHERE id = ? AND user_id = ?`, [importId, userId], function(err) {
             if (err) {
                 db.run('ROLLBACK');
                 return res.status(500).json({ error: err.message });
@@ -443,8 +461,8 @@ app.delete('/api/ofx-imports/:id', (req, res) => {
 });
 
 // FORECASTS
-app.get('/api/forecasts', (req, res) => {
-    db.all(`SELECT * FROM forecasts ORDER BY date ASC`, [], (err, rows) => {
+app.get('/api/forecasts', checkAuth, (req, res) => {
+    db.all(`SELECT * FROM forecasts WHERE user_id = ? ORDER BY date ASC`, [req.userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows.map(f => ({
             id: f.id,
@@ -462,12 +480,12 @@ app.get('/api/forecasts', (req, res) => {
     });
 });
 
-app.post('/api/forecasts', (req, res) => {
+app.post('/api/forecasts', checkAuth, (req, res) => {
     const { date, description, value, type, categoryId, bankId, installmentCurrent, installmentTotal, groupId } = req.body;
     db.run(
-        `INSERT INTO forecasts (date, description, value, type, category_id, bank_id, realized, installment_current, installment_total, group_id) 
-         VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-        [date, description, value, type, categoryId, bankId, installmentCurrent, installmentTotal, groupId],
+        `INSERT INTO forecasts (user_id, date, description, value, type, category_id, bank_id, realized, installment_current, installment_total, group_id) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+        [req.userId, date, description, value, type, categoryId, bankId, installmentCurrent, installmentTotal, groupId],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ id: this.lastID });
@@ -475,11 +493,11 @@ app.post('/api/forecasts', (req, res) => {
     );
 });
 
-app.put('/api/forecasts/:id', (req, res) => {
+app.put('/api/forecasts/:id', checkAuth, (req, res) => {
     const { date, description, value, type, categoryId, bankId } = req.body;
     db.run(
-        `UPDATE forecasts SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ? WHERE id = ?`,
-        [date, description, value, type, categoryId, bankId, req.params.id],
+        `UPDATE forecasts SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ? WHERE id = ? AND user_id = ?`,
+        [date, description, value, type, categoryId, bankId, req.params.id, req.userId],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ success: true });
@@ -487,30 +505,31 @@ app.put('/api/forecasts/:id', (req, res) => {
     );
 });
 
-app.delete('/api/forecasts/:id', (req, res) => {
+app.delete('/api/forecasts/:id', checkAuth, (req, res) => {
     const { mode } = req.query; 
     const id = req.params.id;
+    const userId = req.userId;
 
     if (!mode || mode === 'single') {
-        db.run(`DELETE FROM forecasts WHERE id = ?`, [id], function(err) {
+        db.run(`DELETE FROM forecasts WHERE id = ? AND user_id = ?`, [id, userId], function(err) {
             if(err) return res.status(500).json({error: err.message});
             res.json({ deleted: this.changes });
         });
     } else {
-        db.get(`SELECT group_id, date FROM forecasts WHERE id = ?`, [id], (err, row) => {
+        db.get(`SELECT group_id, date FROM forecasts WHERE id = ? AND user_id = ?`, [id, userId], (err, row) => {
             if (err) return res.status(500).json({error: err.message});
             if (!row || !row.group_id) {
-                db.run(`DELETE FROM forecasts WHERE id = ?`, [id]);
+                db.run(`DELETE FROM forecasts WHERE id = ? AND user_id = ?`, [id, userId]);
                 return res.json({ deleted: 1 });
             }
 
             if (mode === 'all') {
-                db.run(`DELETE FROM forecasts WHERE group_id = ?`, [row.group_id], function(err) {
+                db.run(`DELETE FROM forecasts WHERE group_id = ? AND user_id = ?`, [row.group_id, userId], function(err) {
                     if(err) return res.status(500).json({error: err.message});
                     res.json({ deleted: this.changes });
                 });
             } else if (mode === 'future') {
-                db.run(`DELETE FROM forecasts WHERE group_id = ? AND date >= ?`, [row.group_id, row.date], function(err) {
+                db.run(`DELETE FROM forecasts WHERE group_id = ? AND date >= ? AND user_id = ?`, [row.group_id, row.date, userId], function(err) {
                      if(err) return res.status(500).json({error: err.message});
                      res.json({ deleted: this.changes });
                 });
@@ -519,8 +538,8 @@ app.delete('/api/forecasts/:id', (req, res) => {
     }
 });
 
-app.patch('/api/forecasts/:id/realize', (req, res) => {
-     db.run(`UPDATE forecasts SET realized = 1 WHERE id = ?`, [req.params.id], function(err) {
+app.patch('/api/forecasts/:id/realize', checkAuth, (req, res) => {
+     db.run(`UPDATE forecasts SET realized = 1 WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], function(err) {
         if(err) return res.status(500).json({error: err.message});
         res.json({ updated: this.changes });
     });
