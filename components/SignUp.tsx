@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { UserPlus, Mail, Lock, Building2, Phone, FileText, ArrowRight, ShieldCheck, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { UserPlus, Mail, Building2, Phone, FileText, ArrowRight, ShieldCheck, X, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 interface SignUpProps {
-  token: string | null;
-  onSignUp: (data: any) => void;
+  onBack: () => void;
   isLoading: boolean;
 }
 
@@ -51,81 +50,97 @@ O código, design, estrutura e todas as funcionalidades do Sistema são de propr
 9.2. Alterações: Reservamo-nos o direito de modificar estes Termos a qualquer momento. Quaisquer alterações entrarão em vigor após a publicação da versão atualizada no Sistema. O uso continuado do Sistema após a publicação constitui aceitação de tais alterações.
 `;
 
-const SignUp: React.FC<SignUpProps> = ({ token, onSignUp, isLoading }) => {
+const maskCnpjCpf = (value: string) => {
+  const v = value.replace(/\D/g, '');
+  if (v.length <= 11) {
+    return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  } else {
+    return v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  }
+};
+
+const maskPhone = (value: string) => {
+    const v = value.replace(/\D/g, '');
+    if (v.length <= 10) {
+        return v.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+    } else {
+        return v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    }
+};
+
+const SignUp: React.FC<SignUpProps> = ({ onBack, isLoading }) => {
   const [formData, setFormData] = useState({
     cnpj: '',
     razaoSocial: '',
     email: '',
     phone: '',
-    password: '',
-    confirmPassword: ''
   });
 
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
-  const [validatingToken, setValidatingToken] = useState(true);
-  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false);
 
-  useEffect(() => {
-    // Validate token and fetch email
-    if (token) {
-        fetch(`/api/validate-signup-token/${token}`)
-            .then(res => {
-                if (!res.ok) throw new Error("Link inválido ou expirado.");
-                return res.json();
-            })
-            .then(data => {
-                setFormData(prev => ({ ...prev, email: data.email }));
-                setValidatingToken(false);
-            })
-            .catch(err => {
-                setTokenError(err.message);
-                setValidatingToken(false);
-            });
-    } else {
-        setTokenError("Token de cadastro não fornecido.");
-        setValidatingToken(false);
-    }
-  }, [token]);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (formData.password !== formData.confirmPassword) {
-      alert("As senhas não coincidem!");
-      return;
+    if (!formData.cnpj || !formData.razaoSocial || !formData.email || !formData.phone) {
+        alert("Preencha todos os campos.");
+        return;
     }
+    // Open modal to confirm terms and submit
+    setShowTermsModal(true);
+  };
 
-    if (!acceptedTerms) {
-      alert("Você deve aceitar os Termos de Uso para prosseguir.");
-      return;
+  const handleFinalSubmit = async () => {
+    setLocalLoading(true);
+    try {
+        const res = await fetch('/api/request-signup', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(formData)
+        });
+        
+        if (res.ok) {
+            setIsSuccess(true);
+            setShowTermsModal(false);
+        } else {
+            const err = await res.json();
+            alert(err.error || "Erro ao solicitar cadastro");
+        }
+    } catch (e) {
+        alert("Erro de conexão");
+    } finally {
+        setLocalLoading(false);
     }
-
-    // Send token along with data
-    onSignUp({ ...formData, token });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    let value = e.target.value;
+    if (e.target.name === 'cnpj') value = maskCnpjCpf(value);
+    if (e.target.name === 'phone') value = maskPhone(value);
+    
+    setFormData({ ...formData, [e.target.name]: value });
   };
 
-  if (validatingToken) {
+  if (isSuccess) {
       return (
-          <div className="min-h-screen bg-background flex items-center justify-center text-slate-400">
-              Validando link de cadastro...
-          </div>
-      );
-  }
-
-  if (tokenError) {
-      return (
-          <div className="min-h-screen bg-background flex items-center justify-center p-4">
-              <div className="bg-surface p-8 rounded-xl border border-red-900/50 text-center max-w-md">
-                  <h2 className="text-xl font-bold text-red-500 mb-2">Erro no Link</h2>
-                  <p className="text-slate-400">{tokenError}</p>
-                  <a href="/" className="mt-4 inline-block text-primary hover:underline">Voltar ao início</a>
-              </div>
-          </div>
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+            <div className="bg-surface w-full max-w-md rounded-2xl shadow-xl p-8 text-center animate-in fade-in zoom-in duration-300 border border-slate-800">
+            <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
+                <CheckCircle2 size={32} />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Quase lá!</h2>
+            <p className="text-slate-400 mb-8">
+                Enviamos um e-mail para <strong>{formData.email}</strong>. <br/>
+                Clique no link recebido para criar sua senha e ativar sua conta.
+            </p>
+            <button
+                onClick={onBack}
+                className="w-full bg-slate-800 text-white py-3 rounded-lg font-semibold hover:bg-slate-700 transition-colors border border-slate-700"
+            >
+                Voltar para o Login
+            </button>
+            </div>
+        </div>
       );
   }
 
@@ -139,17 +154,26 @@ const SignUp: React.FC<SignUpProps> = ({ token, onSignUp, isLoading }) => {
             <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-6 border border-primary/30">
               <UserPlus className="w-6 h-6 text-primary" />
             </div>
-            <h2 className="text-3xl font-bold mb-4">Finalizar Cadastro</h2>
+            <h2 className="text-3xl font-bold mb-4">Primeiro Acesso</h2>
             <p className="text-slate-400 text-sm leading-relaxed">
-              Complete os dados da sua empresa para ter acesso total à plataforma.
+              Cadastre sua empresa para ter controle total sobre suas finanças.
             </p>
+          </div>
+          
+          <div className="mt-8 relative z-10">
+            <button 
+              onClick={onBack}
+              className="flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition-colors"
+            >
+              <ArrowLeft size={16} /> Voltar para Login
+            </button>
           </div>
         </div>
 
         {/* Right Side - Form */}
         <div className="p-8 md:w-3/5">
           <h3 className="text-xl font-bold text-white mb-6">Dados da Empresa</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handlePreSubmit} className="space-y-4">
             
             <div className="space-y-4">
               <div className="relative">
@@ -158,10 +182,11 @@ const SignUp: React.FC<SignUpProps> = ({ token, onSignUp, isLoading }) => {
                   name="cnpj"
                   type="text"
                   required
+                  maxLength={18}
                   value={formData.cnpj}
                   onChange={handleChange}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white placeholder-slate-600"
-                  placeholder="CNPJ (apenas números)"
+                  placeholder="CNPJ ou CPF"
                 />
               </div>
 
@@ -174,92 +199,44 @@ const SignUp: React.FC<SignUpProps> = ({ token, onSignUp, isLoading }) => {
                   value={formData.razaoSocial}
                   onChange={handleChange}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white placeholder-slate-600"
-                  placeholder="Razão Social"
+                  placeholder="Razão Social / Nome Completo"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 <div className="relative opacity-60">
+              <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                   <input
                     name="email"
                     type="email"
                     required
-                    readOnly
                     value={formData.email}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg cursor-not-allowed outline-none text-sm text-slate-400"
-                    title="O e-mail foi validado e não pode ser alterado"
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white placeholder-slate-600"
+                    placeholder="Email Corporativo"
                   />
-                </div>
-                <div className="relative">
+              </div>
+              <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                   <input
                     name="phone"
                     type="tel"
                     required
+                    maxLength={15}
                     value={formData.phone}
                     onChange={handleChange}
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white placeholder-slate-600"
-                    placeholder="Telefone"
+                    placeholder="Telefone / WhatsApp"
                   />
-                </div>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <input
-                    name="password"
-                    type="password"
-                    required
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white placeholder-slate-600"
-                    placeholder="Senha"
-                  />
-                </div>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <input
-                    name="confirmPassword"
-                    type="password"
-                    required
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white placeholder-slate-600"
-                    placeholder="Confirmar Senha"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Terms Checkbox */}
-            <div className="flex items-start gap-2 pt-2">
-                <input 
-                    type="checkbox" 
-                    id="terms"
-                    className="mt-1 w-4 h-4 text-primary bg-slate-900 border-slate-700 rounded focus:ring-primary focus:ring-2"
-                    checked={acceptedTerms}
-                    onChange={(e) => setAcceptedTerms(e.target.checked)}
-                />
-                <label htmlFor="terms" className="text-xs text-slate-400">
-                    Li e concordo com os <button type="button" onClick={() => setShowTermsModal(true)} className="text-primary hover:underline font-bold">Termos e Condições de Uso</button> da Vírgula Contábil Ltda.
-                </label>
             </div>
 
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={isLoading || !acceptedTerms}
+                disabled={localLoading || isLoading}
                 className="w-full bg-primary text-slate-950 py-3 rounded-lg font-bold hover:bg-primaryHover transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-900/50"
               >
-                {isLoading ? (
-                  'Cadastrando...'
-                ) : (
-                  <>
-                    Finalizar Cadastro <ArrowRight size={18} />
-                  </>
-                )}
+                Avançar <ArrowRight size={18} />
               </button>
             </div>
           </form>
@@ -290,13 +267,14 @@ const SignUp: React.FC<SignUpProps> = ({ token, onSignUp, isLoading }) => {
                         onClick={() => setShowTermsModal(false)}
                         className="px-4 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-800 transition-colors"
                       >
-                          Fechar
+                          Cancelar
                       </button>
                       <button 
-                        onClick={() => { setAcceptedTerms(true); setShowTermsModal(false); }}
-                        className="px-6 py-2 bg-primary text-slate-900 font-bold rounded-lg hover:bg-primaryHover transition-colors"
+                        onClick={handleFinalSubmit}
+                        disabled={localLoading}
+                        className="px-6 py-2 bg-primary text-slate-900 font-bold rounded-lg hover:bg-primaryHover transition-colors flex items-center gap-2"
                       >
-                          Li e Concordo
+                          {localLoading ? 'Enviando...' : 'Li e Concordo'}
                       </button>
                   </div>
               </div>

@@ -153,14 +153,31 @@ db.serialize(() => {
     phone TEXT,
     reset_token TEXT,
     reset_token_expires INTEGER
-  )`);
+  )`, (err) => {
+      if (!err) {
+          // MIGRATION FIX: Ensure reset_token columns exist for old DBs
+          db.run("ALTER TABLE users ADD COLUMN reset_token TEXT", () => {});
+          db.run("ALTER TABLE users ADD COLUMN reset_token_expires INTEGER", () => {});
+      }
+  });
 
-  // Pending Signups (New Table)
+  // Pending Signups (Updated Schema)
   db.run(`CREATE TABLE IF NOT EXISTS pending_signups (
     email TEXT PRIMARY KEY,
     token TEXT,
+    cnpj TEXT,
+    razao_social TEXT,
+    phone TEXT,
     created_at INTEGER
-  )`);
+  )`, (err) => {
+      // MIGRATION: If table existed with old schema, drop and recreate (dev mode) or add columns
+      // For simplicity in this context, we'll try to add columns if they are missing
+      if (!err) {
+          db.run("ALTER TABLE pending_signups ADD COLUMN cnpj TEXT", () => {});
+          db.run("ALTER TABLE pending_signups ADD COLUMN razao_social TEXT", () => {});
+          db.run("ALTER TABLE pending_signups ADD COLUMN phone TEXT", () => {});
+      }
+  });
 
   // Banks (Added user_id)
   db.run(`CREATE TABLE IF NOT EXISTS banks (
@@ -240,9 +257,9 @@ db.serialize(() => {
 
 // --- API Routes ---
 
-// 1. REQUEST SIGNUP (Send Email)
+// 1. REQUEST SIGNUP (Stores Data & Sends Email)
 app.post('/api/request-signup', (req, res) => {
-    const { email } = req.body;
+    const { email, cnpj, razaoSocial, phone } = req.body;
     
     // Check if user already exists
     db.get('SELECT id FROM users WHERE email = ?', [email], async (err, row) => {
@@ -251,59 +268,61 @@ app.post('/api/request-signup', (req, res) => {
         const token = crypto.randomBytes(20).toString('hex');
         const createdAt = Date.now();
 
+        // Use REPLACE to update if user re-submits before activating
         db.run(
-            `INSERT OR REPLACE INTO pending_signups (email, token, created_at) VALUES (?, ?, ?)`,
-            [email, token, createdAt],
+            `INSERT OR REPLACE INTO pending_signups (email, token, cnpj, razao_social, phone, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+            [email, token, cnpj, razaoSocial, phone, createdAt],
             async function(err) {
                 if (err) return res.status(500).json({ error: err.message });
 
                 const origin = req.headers.origin || 'https://seu-app.com';
-                const link = `${origin}/?action=signup&token=${token}`;
+                const link = `${origin}/?action=finalize&token=${token}`;
 
                 const html = `
                 <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
                     <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
-                        <h1 style="color: #10b981; margin: 0 0 20px 0;">Finalizar Cadastro</h1>
+                        <h1 style="color: #10b981; margin: 0 0 20px 0;">Definir Senha de Acesso</h1>
                         <p style="color: #334155; font-size: 16px; margin-bottom: 30px;">
-                            Você solicitou o cadastro na Virgula Contábil. Clique no botão abaixo para preencher seus dados e ativar sua conta.
+                            Olá, <strong>${razaoSocial}</strong>. Seus dados foram recebidos.
+                            <br>Clique no botão abaixo para definir sua senha e ativar sua conta.
                         </p>
                         <a href="${link}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
-                            Continuar Cadastro
+                            Definir Minha Senha
                         </a>
                         <p style="color: #94a3b8; font-size: 12px; margin-top: 30px;">
-                            Se você não solicitou este cadastro, ignore este e-mail.
+                            Link válido por 24 horas.
                         </p>
                     </div>
                 </div>
                 `;
 
-                await sendEmail(email, "Finalize seu cadastro - Virgula Contábil", html);
+                await sendEmail(email, "Ative sua conta - Virgula Contábil", html);
                 res.json({ message: "Link de cadastro enviado." });
             }
         );
     });
 });
 
-// 2. COMPLETE SIGNUP (With Token)
+// 2. COMPLETE SIGNUP (With Token + Password)
 app.post('/api/complete-signup', (req, res) => {
-  const { email, password, cnpj, razaoSocial, phone, token } = req.body;
+  const { token, password } = req.body;
 
   // Validate Token
-  db.get('SELECT * FROM pending_signups WHERE email = ? AND token = ?', [email, token], (err, row) => {
+  db.get('SELECT * FROM pending_signups WHERE token = ?', [token], (err, pendingUser) => {
       if (err) return res.status(500).json({ error: err.message });
-      if (!row) return res.status(400).json({ error: "Token inválido ou expirado." });
+      if (!pendingUser) return res.status(400).json({ error: "Token inválido ou expirado." });
 
       // Create User
       db.run(
         `INSERT INTO users (email, password, cnpj, razao_social, phone) VALUES (?, ?, ?, ?, ?)`,
-        [email, password, cnpj, razaoSocial, phone],
+        [pendingUser.email, password, pendingUser.cnpj, pendingUser.razao_social, pendingUser.phone],
         async function(err) {
           if (err) return res.status(500).json({ error: err.message });
           
           const newUserId = this.lastID;
 
           // Remove Pending
-          db.run('DELETE FROM pending_signups WHERE email = ?', [email]);
+          db.run('DELETE FROM pending_signups WHERE email = ?', [pendingUser.email]);
 
           // Seed Initial Data
           const bankStmt = db.prepare("INSERT INTO banks (user_id, name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, ?, ?, ?)");
@@ -318,7 +337,7 @@ app.post('/api/complete-signup', (req, res) => {
           });
           catStmt.finalize();
 
-          res.json({ id: newUserId, email, razaoSocial });
+          res.json({ id: newUserId, email: pendingUser.email, razaoSocial: pendingUser.razao_social });
         }
       );
   });
@@ -333,12 +352,11 @@ app.post('/api/login', (req, res) => {
   });
 });
 
-// 3. RECOVER PASSWORD (Update to use token in DB)
+// 3. RECOVER PASSWORD
 app.post('/api/recover-password', (req, res) => {
     const { email } = req.body;
     db.get(`SELECT * FROM users WHERE email = ?`, [email], async (err, row) => {
         if (!row) {
-             // Return success even if not found to prevent enumeration
              return res.json({ message: 'Se o email existir, as instruções foram enviadas.' });
         }
         
@@ -397,11 +415,11 @@ app.post('/api/reset-password-confirm', (req, res) => {
     );
 });
 
-// GET TOKEN INFO (Optional helper to validate on frontend load)
+// GET TOKEN INFO
 app.get('/api/validate-signup-token/:token', (req, res) => {
-    db.get('SELECT email FROM pending_signups WHERE token = ?', [req.params.token], (err, row) => {
+    db.get('SELECT email, razao_social FROM pending_signups WHERE token = ?', [req.params.token], (err, row) => {
         if (err || !row) return res.status(404).json({ valid: false });
-        res.json({ valid: true, email: row.email });
+        res.json({ valid: true, email: row.email, razaoSocial: row.razao_social });
     });
 });
 

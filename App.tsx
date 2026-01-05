@@ -6,9 +6,9 @@ import BankList from './components/BankList';
 import Reports from './components/Reports';
 import Login from './components/Login';
 import ForgotPassword from './components/ForgotPassword';
-import PreSignUp from './components/PreSignUp';
 import SignUp from './components/SignUp';
 import ResetPassword from './components/ResetPassword';
+import FinalizeSignUp from './components/FinalizeSignUp';
 import Forecasts from './components/Forecasts';
 import OFXImports from './components/OFXImports';
 import Categories from './components/Categories';
@@ -19,7 +19,7 @@ function App() {
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<any>(null); // Store user info
-  const [authView, setAuthView] = useState<'login' | 'forgot' | 'presignup' | 'signup' | 'reset'>('login');
+  const [authView, setAuthView] = useState<'login' | 'forgot' | 'signup' | 'reset' | 'finalize'>('login');
   const [urlToken, setUrlToken] = useState<string | null>(null); // For handling email links
   const [isLoading, setIsLoading] = useState(false);
 
@@ -42,8 +42,8 @@ function App() {
 
     if (action && token) {
         setUrlToken(token);
-        if (action === 'signup') {
-            setAuthView('signup');
+        if (action === 'finalize') {
+            setAuthView('finalize');
         } else if (action === 'reset') {
             setAuthView('reset');
         }
@@ -385,29 +385,6 @@ function App() {
     }
   };
 
-  const handleCompleteSignUp = async (data: any) => {
-    setIsLoading(true);
-    try {
-        const res = await fetch('/api/complete-signup', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
-        if (res.ok) {
-            alert("Conta criada com sucesso! Faça login para continuar.");
-            setAuthView('login');
-            setUrlToken(null);
-        } else {
-            const err = await res.json();
-            alert(err.error || "Erro no cadastro");
-        }
-    } catch (e) {
-        alert("Erro de conexão");
-    } finally {
-        setIsLoading(false);
-    }
-  };
-
   const handleForgotPassword = async (email: string) => {
       try {
           const res = await fetch('/api/recover-password', {
@@ -429,11 +406,12 @@ function App() {
     if (authView === 'forgot') {
       return <ForgotPassword onBack={() => setAuthView('login')} onSubmit={handleForgotPassword} />;
     }
-    if (authView === 'presignup') {
-        return <PreSignUp onBack={() => setAuthView('login')} isLoading={isLoading} />;
-    }
+    // New Signup Flow
     if (authView === 'signup') {
-        return <SignUp token={urlToken} onSignUp={handleCompleteSignUp} isLoading={isLoading} />;
+        return <SignUp onBack={() => setAuthView('login')} isLoading={isLoading} />;
+    }
+    if (authView === 'finalize') {
+        return <FinalizeSignUp token={urlToken || ''} onSuccess={() => { setAuthView('login'); setUrlToken(null); }} />;
     }
     if (authView === 'reset') {
         return <ResetPassword token={urlToken || ''} onSuccess={() => setAuthView('login')} />;
@@ -442,7 +420,7 @@ function App() {
       <Login 
         onLogin={handleLogin} 
         onForgotPassword={() => setAuthView('forgot')} 
-        onSignUp={() => setAuthView('presignup')}
+        onSignUp={() => setAuthView('signup')}
         isLoading={isLoading}
       />
     );
