@@ -65,6 +65,24 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
       setIsModalOpen(true);
   };
 
+  const handlePrevMonth = () => {
+    if (selectedMonth === 0) {
+        setSelectedMonth(11);
+        setSelectedYear(selectedYear - 1);
+    } else {
+        setSelectedMonth(selectedMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 11) {
+        setSelectedMonth(0);
+        setSelectedYear(selectedYear + 1);
+    } else {
+        setSelectedMonth(selectedMonth + 1);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const value = Math.abs(Number(formData.value));
@@ -227,9 +245,9 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
            <div className="flex flex-col lg:flex-row">
                {/* Month Carousel */}
                <div className="lg:w-1/3 border-b lg:border-b-0 lg:border-r border-slate-800 p-4 flex items-center justify-between">
-                    <button onClick={() => setSelectedMonth(prev => prev === 0 ? 11 : prev - 1)} className="p-2 hover:bg-slate-800 rounded-full text-primary"><ChevronLeft/></button>
+                    <button onClick={handlePrevMonth} className="p-2 hover:bg-slate-800 rounded-full text-primary"><ChevronLeft/></button>
                     <div className="font-bold text-xl text-primary">{MONTHS[selectedMonth]}</div>
-                    <button onClick={() => setSelectedMonth(prev => prev === 11 ? 0 : prev + 1)} className="p-2 hover:bg-slate-800 rounded-full text-primary"><ChevronRight/></button>
+                    <button onClick={handleNextMonth} className="p-2 hover:bg-slate-800 rounded-full text-primary"><ChevronRight/></button>
                </div>
                
                {/* Summary Cards */}

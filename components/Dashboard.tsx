@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Transaction, TransactionType, Bank, Forecast, Category, CategoryType } from '../types';
-import { ArrowUpCircle, ArrowDownCircle, Wallet, AlertCircle, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2 } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Wallet, AlertCircle, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardProps {
@@ -15,6 +15,18 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, forecasts, categories, onRefresh }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
+  
+  // New States for Bank Details & Realization
+  const [selectedBankForForecasts, setSelectedBankForForecasts] = useState<number | null>(null);
+  const [realizeModal, setRealizeModal] = useState<{ isOpen: boolean; forecast: Forecast | null; date: string }>({
+      isOpen: false,
+      forecast: null,
+      date: ''
+  });
+
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
   const [formData, setFormData] = useState({
       description: '',
       value: '',
@@ -26,11 +38,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       isFixed: false
   });
 
-  const currentDate = new Date();
-  const currentMonth = currentDate.getMonth();
-  const currentYear = currentDate.getFullYear();
-  const startOfCurrentMonth = new Date(currentYear, currentMonth, 1);
-
+  const startOfSelectedMonth = new Date(currentYear, currentMonth, 1);
   const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   const getHeaders = () => ({
@@ -38,16 +46,42 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       'user-id': String(userId)
   });
 
-  // Calculate Overdue Forecasts (Before current month start, not realized)
+  // Navigation Logic Fix
+  const handlePrevMonth = () => {
+    if (currentMonth === 0) {
+        setCurrentMonth(11);
+        setCurrentYear(currentYear - 1);
+    } else {
+        setCurrentMonth(currentMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonth === 11) {
+        setCurrentMonth(0);
+        setCurrentYear(currentYear + 1);
+    } else {
+        setCurrentMonth(currentMonth + 1);
+    }
+  };
+
+  // Calculate Overdue Forecasts (Before selected month start, not realized)
   const overdueForecasts = forecasts.filter(f => {
       const fDate = new Date(f.date);
       // Ajuste para garantir comparação correta ignorando horas (apenas datas)
       const fDateMidnight = new Date(fDate.getFullYear(), fDate.getMonth(), fDate.getDate());
-      return fDateMidnight < startOfCurrentMonth && !f.realized;
+      return fDateMidnight < startOfSelectedMonth && !f.realized;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const overdueIncome = overdueForecasts.filter(f => f.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
   const overdueExpense = overdueForecasts.filter(f => f.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
+
+  // Filter Forecasts for the current/selected view (Selected Month + Overdue for total calc context if needed, but let's stick to Pending)
+  // For "Saldos por Banco", we want ALL pending forecasts or just this month? 
+  // Usually, projected balance = current + all pending future. 
+  // Let's filter pending forecasts per bank (All future/pending) to show a "Projected Future" or just "Pending in this View".
+  // Let's stick to "Pending Forecasts" meaning ALL un-realized forecasts to show the true future impact.
+  const allPendingForecasts = forecasts.filter(f => !f.realized);
 
   // Initialize form when opening modal
   const openModal = (type: TransactionType) => {
@@ -64,8 +98,19 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       setIsModalOpen(true);
   };
 
-  const handleRealizeForecast = async (forecast: Forecast) => {
-      if(!confirm('Confirmar realização desta previsão pendente?')) return;
+  const openRealizeModal = (forecast: Forecast) => {
+      setRealizeModal({
+          isOpen: true,
+          forecast,
+          date: forecast.date // Default to forecast date
+      });
+  };
+
+  const confirmRealization = async () => {
+      if (!realizeModal.forecast || !realizeModal.date) return;
+      
+      const forecast = realizeModal.forecast;
+      const finalDate = realizeModal.date;
 
       try {
         // 1. Mark as realized
@@ -74,16 +119,16 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
             headers: getHeaders()
         });
         
-        // 2. Create transaction
+        // 2. Create transaction with SELECTED date
         const descSuffix = forecast.installmentTotal 
             ? ` (${forecast.installmentCurrent}/${forecast.installmentTotal})` 
-            : (forecast.groupId ? ' (Recorrente Atrasado)' : ' (Atrasado)');
+            : (forecast.groupId ? ' (Recorrente)' : '');
 
         await fetch('/api/transactions', {
             method: 'POST',
             headers: getHeaders(),
             body: JSON.stringify({
-                date: forecast.date, // Mantém a data original ou poderia ser new Date().toISOString() se quisesse data atual
+                date: finalDate,
                 description: forecast.description + descSuffix,
                 value: forecast.value,
                 type: forecast.type,
@@ -94,8 +139,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
         });
 
         onRefresh();
-        // Se não houver mais atrasados, fecha o modal
+        setRealizeModal({ isOpen: false, forecast: null, date: '' });
+        // Close parent modals if empty
         if (overdueForecasts.length <= 1) setIsOverdueModalOpen(false);
+        // If viewing bank specific, we don't close it, just refresh data (which triggers re-render)
 
       } catch (error) {
           alert("Erro ao efetivar previsão.");
@@ -288,10 +335,14 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
           </div>
       )}
 
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col md:flex-row justify-between items-end gap-4">
         <div>
             <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-            <p className="text-slate-400 font-medium">{MONTHS[currentMonth]} de {currentYear}</p>
+            <div className="flex items-center gap-2 mt-1">
+                 <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
+                 <span className="text-slate-300 font-medium">{MONTHS[currentMonth]} de {currentYear}</span>
+                 <button onClick={handleNextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={16}/></button>
+            </div>
         </div>
         <div className="flex gap-2">
             <button 
@@ -373,26 +424,57 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Column 1: Bank Balances */}
+        {/* Column 1: Bank Balances Split */}
         <div className="lg:col-span-2 bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
              <h3 className="font-semibold text-slate-200 mb-6">Saldos por Banco</h3>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {banks.map(bank => (
-                    <div key={bank.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-900 transition-all">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-white p-1.5 flex items-center justify-center overflow-hidden">
-                                <img src={bank.logo} alt={bank.name} className="max-w-full max-h-full object-contain" />
+                {banks.map(bank => {
+                    const bankPendingForecasts = allPendingForecasts.filter(f => f.bankId === bank.id);
+                    const pendingIncome = bankPendingForecasts.filter(f => f.type === TransactionType.CREDIT).reduce((a,b) => a + b.value, 0);
+                    const pendingExpense = bankPendingForecasts.filter(f => f.type === TransactionType.DEBIT).reduce((a,b) => a + b.value, 0);
+                    const pendingTotal = pendingIncome - pendingExpense;
+                    const projectedBalance = bank.balance + pendingTotal;
+
+                    return (
+                        <div 
+                            key={bank.id} 
+                            onClick={() => setSelectedBankForForecasts(bank.id)}
+                            className="p-4 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-900 transition-all cursor-pointer group"
+                        >
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-lg bg-white p-1.5 flex items-center justify-center overflow-hidden">
+                                    <img src={bank.logo} alt={bank.name} className="max-w-full max-h-full object-contain" />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-slate-200 text-sm group-hover:text-primary transition-colors">{bank.name}</h4>
+                                    <p className="text-xs text-slate-500 max-w-[120px] truncate">{bank.nickname || 'Conta Corrente'}</p>
+                                </div>
                             </div>
-                            <div>
-                                <h4 className="font-bold text-slate-200 text-sm">{bank.name}</h4>
-                                <p className="text-xs text-slate-500 max-w-[120px] truncate" title={bank.nickname}>{bank.nickname || 'Conta Corrente'}</p>
+                            
+                            <div className="grid grid-cols-2 gap-2 divide-x divide-slate-800">
+                                <div>
+                                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Saldo Atual</p>
+                                    <span className={`font-bold text-sm ${bank.balance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                        R$ {bank.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                                <div className="pl-4">
+                                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Projetado (Pend.)</p>
+                                    <span className={`font-bold text-sm ${projectedBalance >= 0 ? 'text-sky-400' : 'text-rose-400'}`}>
+                                        R$ {projectedBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                </div>
                             </div>
+                            {bankPendingForecasts.length > 0 && (
+                                <div className="mt-2 text-center">
+                                    <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">
+                                        {bankPendingForecasts.length} previsões pendentes
+                                    </span>
+                                </div>
+                            )}
                         </div>
-                        <span className={`font-bold ${bank.balance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            R$ {bank.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </span>
-                    </div>
-                ))}
+                    );
+                })}
              </div>
         </div>
 
@@ -501,7 +583,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
                                     </td>
                                     <td className="py-3 flex justify-center gap-2">
                                         <button 
-                                            onClick={() => handleRealizeForecast(f)}
+                                            onClick={() => openRealizeModal(f)}
                                             className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded hover:bg-emerald-500/20 border border-emerald-500/20"
                                             title="Efetivar Lançamento"
                                         >
@@ -520,13 +602,132 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
                         </tbody>
                     </table>
                 </div>
-                <div className="p-4 bg-slate-950/50 border-t border-slate-800 text-center">
-                    <p className="text-xs text-slate-500">
-                        Total Pendente: <span className="text-emerald-500">R$ {overdueIncome.toFixed(2)}</span> (Rec) - <span className="text-rose-500">R$ {overdueExpense.toFixed(2)}</span> (Desp)
-                    </p>
-                </div>
             </div>
          </div>
+       )}
+
+       {/* Bank Specific Forecasts Modal */}
+       {selectedBankForForecasts && (
+           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+               <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSelectedBankForForecasts(null)} />
+               <div className="relative bg-surface border border-slate-800 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                   <div className="px-6 py-4 border-b border-slate-800 bg-slate-950 flex justify-between items-center">
+                       <h3 className="font-bold text-white flex items-center gap-2">
+                           <Calculator size={18} className="text-primary"/>
+                           Previsões Pendentes - {banks.find(b => b.id === selectedBankForForecasts)?.name}
+                       </h3>
+                       <button onClick={() => setSelectedBankForForecasts(null)}><X size={20} className="text-slate-400 hover:text-white"/></button>
+                   </div>
+                   <div className="p-6 overflow-y-auto max-h-[60vh] custom-scroll">
+                       {allPendingForecasts.filter(f => f.bankId === selectedBankForForecasts).length === 0 ? (
+                           <div className="text-center text-slate-500 py-8">Nenhuma previsão pendente para este banco.</div>
+                       ) : (
+                           <table className="w-full text-sm text-left">
+                               <thead className="text-slate-400 font-medium border-b border-slate-800">
+                                   <tr>
+                                       <th className="pb-3 pl-2">Data</th>
+                                       <th className="pb-3">Descrição</th>
+                                       <th className="pb-3 text-right">Valor</th>
+                                       <th className="pb-3 text-center">Ações</th>
+                                   </tr>
+                               </thead>
+                               <tbody className="divide-y divide-slate-800">
+                                   {allPendingForecasts
+                                       .filter(f => f.bankId === selectedBankForForecasts)
+                                       .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                                       .map(f => (
+                                       <tr key={f.id} className="hover:bg-slate-800/30 transition-colors">
+                                           <td className="py-3 pl-2 text-slate-300 font-mono text-xs">
+                                               {new Date(f.date).toLocaleDateString('pt-BR')}
+                                           </td>
+                                           <td className="py-3 font-medium text-slate-200">
+                                               {f.description}
+                                               {f.installmentTotal ? (
+                                                    <span className="ml-2 text-xs bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">
+                                                        {f.installmentCurrent}/{f.installmentTotal}
+                                                    </span>
+                                                ) : null}
+                                           </td>
+                                           <td className={`py-3 text-right font-bold ${f.type === TransactionType.DEBIT ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                               R$ {f.value.toFixed(2)}
+                                           </td>
+                                           <td className="py-3 flex justify-center gap-2">
+                                               <button 
+                                                   onClick={() => openRealizeModal(f)}
+                                                   className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded hover:bg-emerald-500/20 border border-emerald-500/20"
+                                                   title="Efetivar Lançamento"
+                                               >
+                                                   <Check size={16}/>
+                                               </button>
+                                               <button 
+                                                   onClick={() => handleDeleteForecast(f.id)}
+                                                   className="p-1.5 bg-rose-500/10 text-rose-500 rounded hover:bg-rose-500/20 border border-rose-500/20"
+                                                   title="Excluir Previsão"
+                                               >
+                                                   <Trash2 size={16}/>
+                                               </button>
+                                           </td>
+                                       </tr>
+                                   ))}
+                               </tbody>
+                           </table>
+                       )}
+                   </div>
+               </div>
+           </div>
+       )}
+
+       {/* Realize With Date Modal */}
+       {realizeModal.isOpen && (
+           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setRealizeModal({ ...realizeModal, isOpen: false })} />
+               <div className="relative bg-surface border border-slate-700 rounded-xl shadow-2xl w-full max-w-sm p-6 animate-in fade-in zoom-in duration-200">
+                   <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                       <Calendar size={20} className="text-emerald-500"/> Confirmar Efetivação
+                   </h3>
+                   <p className="text-sm text-slate-400 mb-4">
+                       Por favor, confirme a data em que este lançamento realmente ocorreu:
+                   </p>
+                   
+                   <div className="space-y-4">
+                       <div>
+                           <label className="text-xs font-semibold text-slate-500 uppercase">Descrição</label>
+                           <p className="text-white font-medium">{realizeModal.forecast?.description}</p>
+                       </div>
+                       <div>
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Valor</label>
+                            <p className={`font-bold ${realizeModal.forecast?.type === TransactionType.DEBIT ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                R$ {realizeModal.forecast?.value.toFixed(2)}
+                            </p>
+                       </div>
+                       <div>
+                           <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Data da Efetivação</label>
+                           <input 
+                               type="date"
+                               required
+                               className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white outline-none focus:border-emerald-500"
+                               value={realizeModal.date}
+                               onChange={(e) => setRealizeModal({ ...realizeModal, date: e.target.value })}
+                           />
+                       </div>
+
+                       <div className="flex gap-3 pt-2">
+                           <button 
+                               onClick={() => setRealizeModal({ ...realizeModal, isOpen: false })}
+                               className="flex-1 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-800"
+                           >
+                               Cancelar
+                           </button>
+                           <button 
+                               onClick={confirmRealization}
+                               className="flex-1 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 font-medium"
+                           >
+                               Confirmar
+                           </button>
+                       </div>
+                   </div>
+               </div>
+           </div>
        )}
 
        {/* Quick Add Modal */}
