@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { LayoutDashboard, Receipt, PieChart, Landmark, LogOut, Menu, ArrowUpRight, FileSpreadsheet, Tags, Scale, Calculator, User, ChevronDown, FileCog } from 'lucide-react';
+import { LayoutDashboard, Receipt, PieChart, Landmark, LogOut, Menu, ArrowUpRight, FileSpreadsheet, Tags, Scale, Calculator, User, ChevronDown, FileCog, BookOpen } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
@@ -32,7 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
         <div className="h-full flex flex-col">
           
           {/* Top User Section */}
-          <div className="p-4 bg-slate-950 border-b border-slate-800">
+          <div className="p-3 bg-slate-950 border-b border-slate-800">
              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-primary border border-slate-700">
@@ -47,88 +47,88 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
           </div>
 
           {/* App Header */}
-          <div className="px-6 py-6 flex items-center gap-3">
-             <div className="p-2 bg-primary/10 rounded-lg">
-                <Landmark className="text-primary" size={20} />
+          <div className="px-4 py-4 flex items-center gap-3">
+             <div className="p-1.5 bg-primary/10 rounded-lg">
+                <Landmark className="text-primary" size={18} />
              </div>
-             <span className="font-bold text-lg text-white">Virgula Contábil</span>
+             <span className="font-bold text-base text-white">Virgula Contábil</span>
           </div>
 
-          <nav className="flex-1 px-4 space-y-6 overflow-y-auto custom-scroll">
+          <nav className="flex-1 px-3 space-y-4 overflow-y-auto custom-scroll">
             
             {/* Main Action Group */}
-            <div className="space-y-1">
+            <div className="space-y-0.5">
                 <button
                   onClick={() => { onTabChange('dashboard'); setIsMobileMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+                  className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                     ${activeTab === 'dashboard' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                   `}
                 >
-                  <LayoutDashboard size={18} />
+                  <LayoutDashboard size={16} />
                   Dashboard
                 </button>
 
                 <button
                   onClick={() => { onTabChange('forecasts'); setIsMobileMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+                  className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                     ${activeTab === 'forecasts' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                   `}
                 >
-                  <ArrowUpRight size={18} />
+                  <ArrowUpRight size={16} />
                   Previsões
                 </button>
 
                 <button
                   onClick={() => { onTabChange('transactions'); setIsMobileMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+                  className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                     ${activeTab === 'transactions' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                   `}
                 >
-                  <Receipt size={18} />
+                  <Receipt size={16} />
                   Lançamentos
                 </button>
 
                 <button
                   onClick={() => { onTabChange('import'); setIsMobileMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+                  className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                     ${activeTab === 'import' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                   `}
                 >
-                  <FileSpreadsheet size={18} />
+                  <FileSpreadsheet size={16} />
                   Importar Extrato
                 </button>
 
                 <button
                   onClick={() => { onTabChange('rules'); setIsMobileMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+                  className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                     ${activeTab === 'rules' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                   `}
                 >
-                  <FileCog size={18} />
+                  <FileCog size={16} />
                   Regras de Importação
                 </button>
             </div>
 
             {/* Cadastros */}
             <div>
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">Cadastros</div>
-                <div className="space-y-1">
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-2">Cadastros</div>
+                <div className="space-y-0.5">
                     <button
                         onClick={() => { onTabChange('banks'); setIsMobileMenuOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+                        className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                             ${activeTab === 'banks' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                         `}
                     >
-                        <Landmark size={18} />
+                        <Landmark size={16} />
                         Bancos
                     </button>
                     <button
                         onClick={() => { onTabChange('categories'); setIsMobileMenuOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+                        className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                             ${activeTab === 'categories' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                         `}
                     >
-                        <Tags size={18} />
+                        <Tags size={16} />
                         Categorias
                     </button>
                 </div>
@@ -136,28 +136,44 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
 
             {/* Relatórios */}
             <div>
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">Análises</div>
-                <div className="space-y-1">
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-2">Análises</div>
+                <div className="space-y-0.5">
                     <button
                         onClick={() => { onTabChange('reports'); setIsMobileMenuOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+                        className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                             ${activeTab === 'reports' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
                         `}
                     >
-                        <PieChart size={18} />
+                        <PieChart size={16} />
                         Relatórios Financeiros
+                    </button>
+                </div>
+            </div>
+
+            {/* Ajuda */}
+            <div>
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-2">Ajuda</div>
+                <div className="space-y-0.5">
+                    <button
+                        onClick={() => { onTabChange('tutorial'); setIsMobileMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                            ${activeTab === 'tutorial' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
+                        `}
+                    >
+                        <BookOpen size={16} />
+                        Tutorial
                     </button>
                 </div>
             </div>
 
           </nav>
 
-          <div className="p-4 border-t border-slate-800">
+          <div className="p-3 border-t border-slate-800">
             <button 
               onClick={onLogout}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
             >
-              <LogOut size={18} />
+              <LogOut size={16} />
               Sair
             </button>
           </div>

@@ -1,15 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bank, OFXImport, Transaction, TransactionType, KeywordRule } from '../types';
-import { FileUp, Trash2, Calendar, Database, FileSpreadsheet } from 'lucide-react';
+import { FileUp, Trash2, Calendar, Database, FileSpreadsheet, AlertTriangle, ArrowRight, Save, X } from 'lucide-react';
 
 interface OFXImportsProps {
   userId: number;
   banks: Bank[];
   keywordRules: KeywordRule[];
-  onTransactionsImported: () => void; // Callback to refresh transaction list in App
+  transactions: Transaction[]; // Recebendo todas as transações para comparação
+  onTransactionsImported: () => void;
 }
 
-const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, onTransactionsImported }) => {
+interface ConflictingTransaction {
+    newTx: any; // O objeto do OFX
+    oldTx: Transaction; // O objeto do Banco de Dados
+    id: string; // Identificador temporário para a lista
+    action: 'keep_old' | 'replace_with_new';
+}
+
+const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, transactions, onTransactionsImported }) => {
   const [imports, setImports] = useState<OFXImport[]>([]);
   const [importConfig, setImportConfig] = useState({
     bankId: banks[0]?.id || 0,
@@ -17,6 +25,12 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, on
     endDate: ''
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // States for Conflict Resolution
+  const [conflicts, setConflicts] = useState<ConflictingTransaction[]>([]);
+  const [cleanTransactions, setCleanTransactions] = useState<any[]>([]);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [currentFileName, setCurrentFileName] = useState('');
 
   const getHeaders = () => ({
       'Content-Type': 'application/json',
@@ -45,6 +59,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, on
   };
 
   const processOFXFile = (file: File) => {
+    setCurrentFileName(file.name);
     const reader = new FileReader();
     reader.onload = async (e) => {
       const content = e.target?.result as string;
@@ -54,7 +69,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, on
       const start = importConfig.startDate ? new Date(importConfig.startDate) : null;
       const end = importConfig.endDate ? new Date(importConfig.endDate) : null;
 
-      const transactionsToAdd: any[] = [];
+      const parsedTransactions: any[] = [];
       let ignored = 0;
 
       transactionsRaw.forEach(block => {
@@ -77,67 +92,159 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, on
 
             // KEYWORD RULE MATCHING
             let matchedCategoryId = 0;
-            // Iterate rules to find a match
             for (const rule of keywordRules) {
-                // Check Type Match
                 if (rule.type === type) {
-                    // Check Keyword Match (Case insensitive)
                     if (description.toLowerCase().includes(rule.keyword.toLowerCase())) {
                         matchedCategoryId = rule.categoryId;
-                        break; // Stop at first match
+                        break;
                     }
                 }
             }
             
-            transactionsToAdd.push({
+            parsedTransactions.push({
                 date: formattedDate,
                 description: description,
                 value: Math.abs(rawValue),
                 type: type,
                 bankId: Number(importConfig.bankId),
                 categoryId: matchedCategoryId,
-                reconciled: matchedCategoryId > 0 // If rule matched, mark as reconciled? Optional, let's keep false or true based on preference. User didn't specify, but auto-cat implies logic. Keeping false for safety unless confirmed.
+                reconciled: matchedCategoryId > 0
             });
         }
       });
 
-      if (transactionsToAdd.length > 0) {
+      if (parsedTransactions.length === 0) {
+          alert("Nenhum lançamento encontrado no período.");
+          return;
+      }
+
+      // DUPLICATE CHECKING LOGIC
+      // Filter existing transactions for this bank
+      const existingBankTransactions = transactions.filter(t => t.bankId === Number(importConfig.bankId));
+      
+      const newConflicts: ConflictingTransaction[] = [];
+      const newClean: any[] = [];
+
+      // We use a copy to splice out matches so 2 identical new txs match 2 identical old txs correctly one-by-one
+      const availableExisting = [...existingBankTransactions];
+
+      parsedTransactions.forEach((newTx, idx) => {
+          // Find match in available existing
+          const matchIndex = availableExisting.findIndex(ex => 
+              ex.date === newTx.date && 
+              Math.abs(ex.value) === Math.abs(newTx.value) &&
+              ex.type === newTx.type
+          );
+
+          if (matchIndex > -1) {
+              // Found a conflict
+              newConflicts.push({
+                  id: `conflict-${idx}`,
+                  newTx: newTx,
+                  oldTx: availableExisting[matchIndex],
+                  action: 'keep_old' // Default action
+              });
+              // Remove from available so it's not matched again
+              availableExisting.splice(matchIndex, 1);
+          } else {
+              // No conflict
+              newClean.push(newTx);
+          }
+      });
+
+      setCleanTransactions(newClean);
+      setConflicts(newConflicts);
+
+      if (newConflicts.length > 0) {
+          setShowConflictModal(true);
+      } else {
+          // No conflicts, proceed directly
+          saveImport(newClean, []);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const saveImport = async (cleanTxs: any[], resolvedConflicts: ConflictingTransaction[]) => {
+      // 1. Prepare Final List
+      // Start with clean transactions
+      const finalTransactionsToAdd = [...cleanTxs];
+      const transactionsToDeleteIds: number[] = [];
+
+      // Process resolved conflicts
+      resolvedConflicts.forEach(c => {
+          if (c.action === 'replace_with_new') {
+              // Mark old for deletion
+              transactionsToDeleteIds.push(c.oldTx.id);
+              // Add new to insertion list
+              finalTransactionsToAdd.push(c.newTx);
+          }
+          // If 'keep_old', we do nothing (don't add new, don't delete old)
+      });
+
+      if (finalTransactionsToAdd.length === 0 && transactionsToDeleteIds.length === 0) {
+          alert("Nenhuma alteração a ser realizada.");
+          setShowConflictModal(false);
+          return;
+      }
+
+      try {
           // 1. Create Import Record
-          try {
+          // We only create an import record if we are actually adding new transactions
+          let importId: number | null = null;
+          
+          if (finalTransactionsToAdd.length > 0) {
               const resImport = await fetch('/api/ofx-imports', {
                   method: 'POST',
                   headers: getHeaders(),
                   body: JSON.stringify({
-                      fileName: file.name,
+                      fileName: currentFileName,
                       importDate: new Date().toISOString(),
                       bankId: Number(importConfig.bankId),
-                      transactionCount: transactionsToAdd.length
+                      transactionCount: finalTransactionsToAdd.length
                   })
               });
               const importData = await resImport.json();
-              
-              // 2. Add Transactions linked to Import
-              for (const tx of transactionsToAdd) {
-                   await fetch('/api/transactions', {
-                       method: 'POST',
-                       headers: getHeaders(),
-                       body: JSON.stringify({ ...tx, ofxImportId: importData.id })
-                   });
-              }
-
-              alert(`${transactionsToAdd.length} lançamentos importados com sucesso!`);
-              fetchImports();
-              onTransactionsImported();
-              if (fileInputRef.current) fileInputRef.current.value = '';
-
-          } catch (err) {
-              alert("Erro ao salvar importação no servidor.");
+              importId = importData.id;
           }
-      } else {
-          alert("Nenhum lançamento válido encontrado no período selecionado.");
+
+          // 2. Delete Replaced Transactions
+          for (const id of transactionsToDeleteIds) {
+              await fetch(`/api/transactions/${id}`, {
+                  method: 'DELETE',
+                  headers: getHeaders()
+              });
+          }
+
+          // 3. Insert New Transactions
+          for (const tx of finalTransactionsToAdd) {
+                await fetch('/api/transactions', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({ ...tx, ofxImportId: importId })
+                });
+          }
+
+          alert("Importação concluída com sucesso!");
+          fetchImports();
+          onTransactionsImported();
+          setShowConflictModal(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          setConflicts([]);
+          setCleanTransactions([]);
+
+      } catch (err) {
+          alert("Erro ao salvar dados.");
+          console.error(err);
       }
-    };
-    reader.readAsText(file);
+  };
+
+  const handleConflictActionChange = (id: string, action: 'keep_old' | 'replace_with_new') => {
+      setConflicts(prev => prev.map(c => c.id === id ? { ...c, action } : c));
+  };
+
+  const handleBulkAction = (action: 'keep_old' | 'replace_with_new') => {
+      setConflicts(prev => prev.map(c => ({ ...c, action })));
   };
 
   const handleDeleteImport = async (id: number) => {
@@ -222,6 +329,90 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, on
              <p className="text-sm text-slate-500">Selecione o arquivo .ofx fornecido pelo seu banco.</p>
          </div>
       </div>
+
+      {/* Conflict Modal */}
+      {showConflictModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowConflictModal(false)} />
+              <div className="relative bg-surface w-full max-w-4xl max-h-[90vh] flex flex-col rounded-xl shadow-2xl border border-amber-500/30 animate-in fade-in zoom-in duration-200">
+                  <div className="px-6 py-4 border-b border-amber-500/20 bg-amber-950/30 flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                          <AlertTriangle className="text-amber-500" size={24}/>
+                          <div>
+                              <h3 className="text-lg font-bold text-white">Conflitos de Duplicidade Detectados</h3>
+                              <p className="text-sm text-amber-200/70">Alguns lançamentos do arquivo já existem no sistema com a mesma data e valor.</p>
+                          </div>
+                      </div>
+                      <button onClick={() => setShowConflictModal(false)} className="text-slate-400 hover:text-white"><X size={24}/></button>
+                  </div>
+
+                  <div className="p-4 bg-slate-900 border-b border-slate-800 flex justify-end gap-2">
+                      <span className="text-xs font-semibold text-slate-500 uppercase self-center mr-2">Aplicar a todos:</span>
+                      <button onClick={() => handleBulkAction('keep_old')} className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 hover:bg-slate-700">Manter Existentes</button>
+                      <button onClick={() => handleBulkAction('replace_with_new')} className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 hover:bg-slate-700">Substituir por Novos</button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto custom-scroll p-6">
+                      <table className="w-full text-sm">
+                          <thead>
+                              <tr className="text-slate-500 text-xs uppercase border-b border-slate-800">
+                                  <th className="pb-3 text-left w-1/3">No Sistema (Existente)</th>
+                                  <th className="pb-3 text-center">Ação</th>
+                                  <th className="pb-3 text-left w-1/3">No Arquivo (Novo)</th>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800">
+                              {conflicts.map(c => (
+                                  <tr key={c.id} className="hover:bg-slate-800/30">
+                                      <td className="py-3 pr-4 opacity-70">
+                                          <div className="font-mono text-xs text-slate-400">{new Date(c.oldTx.date).toLocaleDateString()}</div>
+                                          <div className="font-medium text-slate-300">{c.oldTx.description}</div>
+                                          <div className={c.oldTx.type === 'debito' ? 'text-rose-500' : 'text-emerald-500'}>R$ {c.oldTx.value.toFixed(2)}</div>
+                                      </td>
+                                      <td className="py-3 px-2">
+                                          <div className="flex flex-col gap-2 items-center">
+                                              <button 
+                                                onClick={() => handleConflictActionChange(c.id, 'keep_old')}
+                                                className={`w-full px-3 py-1.5 rounded text-xs font-bold border transition-colors ${c.action === 'keep_old' ? 'bg-slate-700 text-white border-slate-500' : 'bg-transparent text-slate-500 border-slate-800 hover:border-slate-600'}`}
+                                              >
+                                                  Manter Existente
+                                              </button>
+                                              <button 
+                                                onClick={() => handleConflictActionChange(c.id, 'replace_with_new')}
+                                                className={`w-full px-3 py-1.5 rounded text-xs font-bold border transition-colors ${c.action === 'replace_with_new' ? 'bg-primary/20 text-primary border-primary/50' : 'bg-transparent text-slate-500 border-slate-800 hover:border-slate-600'}`}
+                                              >
+                                                  Substituir
+                                              </button>
+                                          </div>
+                                      </td>
+                                      <td className="py-3 pl-4">
+                                          <div className="font-mono text-xs text-primary">{new Date(c.newTx.date).toLocaleDateString()}</div>
+                                          <div className="font-medium text-white">{c.newTx.description}</div>
+                                          <div className={c.newTx.type === 'debito' ? 'text-rose-400' : 'text-emerald-400'}>R$ {c.newTx.value.toFixed(2)}</div>
+                                      </td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                  </div>
+
+                  <div className="p-6 border-t border-slate-800 bg-slate-950 rounded-b-xl flex justify-between items-center">
+                      <span className="text-sm text-slate-400">
+                          <strong>{cleanTransactions.length}</strong> novos lançamentos sem conflito serão importados automaticamente.
+                      </span>
+                      <div className="flex gap-3">
+                          <button onClick={() => setShowConflictModal(false)} className="px-4 py-2 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-800">Cancelar</button>
+                          <button 
+                            onClick={() => saveImport(cleanTransactions, conflicts)}
+                            className="px-6 py-2 bg-primary text-slate-900 font-bold rounded-lg hover:bg-primaryHover flex items-center gap-2"
+                          >
+                              <Save size={18}/> Confirmar Importação
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
 
       {/* List Area */}
       <div className="bg-surface rounded-xl border border-slate-800 shadow-sm overflow-hidden">

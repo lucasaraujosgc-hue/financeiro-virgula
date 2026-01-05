@@ -13,6 +13,7 @@ import Forecasts from './components/Forecasts';
 import OFXImports from './components/OFXImports';
 import Categories from './components/Categories';
 import KeywordRules from './components/KeywordRules';
+import Tutorial from './components/Tutorial';
 import { Transaction, Bank, Category, Forecast, KeywordRule } from './types';
 
 function App() {
@@ -460,6 +461,7 @@ function App() {
                 userId={user.id} 
                 banks={banks.filter(b => b.active)} 
                 keywordRules={keywordRules}
+                transactions={transactions} // Passando transactions para verificação de duplicidade
                 onTransactionsImported={fetchTransactions} 
             />
         );
@@ -493,6 +495,8 @@ function App() {
         return <Reports transactions={transactions} categories={categories} />;
       case 'forecasts':
         return <Forecasts userId={user.id} banks={banks.filter(b => b.active)} categories={categories} />;
+      case 'tutorial':
+        return <Tutorial />;
       default:
         return <Dashboard userId={user.id} transactions={transactions} banks={banks} forecasts={forecasts} categories={categories} onRefresh={fetchInitialData} />;
     }
