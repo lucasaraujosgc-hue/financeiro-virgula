@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bank, OFXImport, Transaction, TransactionType } from '../types';
+import { Bank, OFXImport, Transaction, TransactionType, KeywordRule } from '../types';
 import { FileUp, Trash2, Calendar, Database, FileSpreadsheet } from 'lucide-react';
 
 interface OFXImportsProps {
   userId: number;
   banks: Bank[];
+  keywordRules: KeywordRule[];
   onTransactionsImported: () => void; // Callback to refresh transaction list in App
 }
 
-const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, onTransactionsImported }) => {
+const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, onTransactionsImported }) => {
   const [imports, setImports] = useState<OFXImport[]>([]);
   const [importConfig, setImportConfig] = useState({
     bankId: banks[0]?.id || 0,
@@ -72,15 +73,30 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, onTransactionsIm
 
             const rawValue = parseFloat(amountMatch[1]);
             const type = rawValue < 0 ? TransactionType.DEBIT : TransactionType.CREDIT;
+            const description = memoMatch[1].trim();
+
+            // KEYWORD RULE MATCHING
+            let matchedCategoryId = 0;
+            // Iterate rules to find a match
+            for (const rule of keywordRules) {
+                // Check Type Match
+                if (rule.type === type) {
+                    // Check Keyword Match (Case insensitive)
+                    if (description.toLowerCase().includes(rule.keyword.toLowerCase())) {
+                        matchedCategoryId = rule.categoryId;
+                        break; // Stop at first match
+                    }
+                }
+            }
             
             transactionsToAdd.push({
                 date: formattedDate,
-                description: memoMatch[1].trim(),
+                description: description,
                 value: Math.abs(rawValue),
                 type: type,
                 bankId: Number(importConfig.bankId),
-                categoryId: 0,
-                reconciled: false
+                categoryId: matchedCategoryId,
+                reconciled: matchedCategoryId > 0 // If rule matched, mark as reconciled? Optional, let's keep false or true based on preference. User didn't specify, but auto-cat implies logic. Keeping false for safety unless confirmed.
             });
         }
       });

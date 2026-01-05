@@ -10,7 +10,8 @@ import SignUp from './components/SignUp';
 import Forecasts from './components/Forecasts';
 import OFXImports from './components/OFXImports';
 import Categories from './components/Categories';
-import { Transaction, Bank, Category, Forecast } from './types';
+import KeywordRules from './components/KeywordRules';
+import { Transaction, Bank, Category, Forecast, KeywordRule } from './types';
 
 function App() {
   // Auth State
@@ -27,6 +28,7 @@ function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [forecasts, setForecasts] = useState<Forecast[]>([]);
+  const [keywordRules, setKeywordRules] = useState<KeywordRule[]>([]);
 
   // Check LocalStorage for "Remember Me"
   useEffect(() => {
@@ -74,7 +76,8 @@ function App() {
           fetchBanks(),
           fetchCategories(),
           fetchTransactions(),
-          fetchForecasts()
+          fetchForecasts(),
+          fetchKeywordRules()
       ]);
   };
 
@@ -113,6 +116,13 @@ function App() {
     } catch (error) {
         console.error("Failed to fetch forecasts", error);
     }
+  };
+
+  const fetchKeywordRules = async () => {
+      try {
+          const res = await fetch('/api/keyword-rules', { headers: getHeaders() });
+          if (res.ok) setKeywordRules(await res.json());
+      } catch (e) { console.error(e) }
   };
 
   const handleAddCategory = async (category: Omit<Category, 'id'>) => {
@@ -279,6 +289,38 @@ function App() {
       }
   };
 
+  const handleAddKeywordRule = async (rule: Omit<KeywordRule, 'id'>) => {
+      try {
+          const res = await fetch('/api/keyword-rules', {
+              method: 'POST',
+              headers: getHeaders(),
+              body: JSON.stringify(rule)
+          });
+          if (res.ok) {
+              const newRule = await res.json();
+              setKeywordRules(prev => [...prev, newRule]);
+          }
+      } catch (e) {
+          alert("Erro ao adicionar regra");
+      }
+  };
+
+  const handleDeleteKeywordRule = async (id: number) => {
+      if(confirm('Deseja excluir esta regra?')) {
+          try {
+              const res = await fetch(`/api/keyword-rules/${id}`, { 
+                  method: 'DELETE',
+                  headers: getHeaders() 
+              });
+              if (res.ok) {
+                  setKeywordRules(prev => prev.filter(r => r.id !== id));
+              }
+          } catch (e) {
+              alert("Erro ao excluir regra");
+          }
+      }
+  };
+
   const handleLogout = () => {
       if (confirm('Deseja realmente sair?')) {
           setIsAuthenticated(false);
@@ -290,6 +332,7 @@ function App() {
           setTransactions([]);
           setCategories([]);
           setForecasts([]);
+          setKeywordRules([]);
       }
   };
 
@@ -406,7 +449,23 @@ function App() {
           />
         );
       case 'import':
-        return <OFXImports userId={user.id} banks={banks.filter(b => b.active)} onTransactionsImported={fetchTransactions} />;
+        return (
+            <OFXImports 
+                userId={user.id} 
+                banks={banks.filter(b => b.active)} 
+                keywordRules={keywordRules}
+                onTransactionsImported={fetchTransactions} 
+            />
+        );
+      case 'rules':
+        return (
+            <KeywordRules
+                categories={categories}
+                rules={keywordRules}
+                onAddRule={handleAddKeywordRule}
+                onDeleteRule={handleDeleteKeywordRule}
+            />
+        );
       case 'banks':
         return (
             <BankList 

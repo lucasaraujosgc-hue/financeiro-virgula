@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { LayoutDashboard, Receipt, PieChart, Landmark, LogOut, Menu, ArrowUpRight, FileSpreadsheet, Tags, Scale, Calculator, User, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Receipt, PieChart, Landmark, LogOut, Menu, ArrowUpRight, FileSpreadsheet, Tags, Scale, Calculator, User, ChevronDown, FileCog } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
@@ -96,6 +96,16 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                 >
                   <FileSpreadsheet size={18} />
                   Importar Extrato
+                </button>
+
+                <button
+                  onClick={() => { onTabChange('rules'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+                    ${activeTab === 'rules' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
+                  `}
+                >
+                  <FileCog size={18} />
+                  Regras de Importação
                 </button>
             </div>
 

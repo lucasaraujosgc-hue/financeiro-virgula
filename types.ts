@@ -24,6 +24,13 @@ export interface Category {
   type: CategoryType;
 }
 
+export interface KeywordRule {
+  id: number;
+  keyword: string;
+  type: TransactionType;
+  categoryId: number;
+}
+
 export interface OFXImport {
   id: number;
   fileName: string;

@@ -222,6 +222,16 @@ db.serialize(() => {
     group_id TEXT,
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
+
+  // Keyword Rules (NEW TABLE)
+  db.run(`CREATE TABLE IF NOT EXISTS keyword_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    keyword TEXT,
+    type TEXT,
+    category_id INTEGER,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  )`);
 });
 
 // --- API Routes ---
@@ -357,6 +367,39 @@ app.delete('/api/categories/:id', checkAuth, (req, res) => {
         res.json({ deleted: this.changes });
     });
 });
+
+// KEYWORD RULES (NEW)
+app.get('/api/keyword-rules', checkAuth, (req, res) => {
+    db.all(`SELECT * FROM keyword_rules WHERE user_id = ?`, [req.userId], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows.map(r => ({
+            id: r.id,
+            keyword: r.keyword,
+            type: r.type,
+            categoryId: r.category_id
+        })));
+    });
+});
+
+app.post('/api/keyword-rules', checkAuth, (req, res) => {
+    const { keyword, type, categoryId } = req.body;
+    db.run(
+        `INSERT INTO keyword_rules (user_id, keyword, type, category_id) VALUES (?, ?, ?, ?)`,
+        [req.userId, keyword, type, categoryId],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ id: this.lastID, keyword, type, categoryId });
+        }
+    );
+});
+
+app.delete('/api/keyword-rules/:id', checkAuth, (req, res) => {
+    db.run(`DELETE FROM keyword_rules WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ deleted: this.changes });
+    });
+});
+
 
 // TRANSACTIONS
 app.get('/api/transactions', checkAuth, (req, res) => {

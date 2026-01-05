@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Transaction, TransactionType, Bank, Forecast, Category, CategoryType } from '../types';
-import { ArrowUpCircle, ArrowDownCircle, Wallet, AlertCircle, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Wallet, AlertCircle, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardProps {
@@ -14,6 +14,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, forecasts, categories, onRefresh }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
   const [formData, setFormData] = useState({
       description: '',
       value: '',
@@ -28,12 +29,25 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
+  const startOfCurrentMonth = new Date(currentYear, currentMonth, 1);
+
   const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   const getHeaders = () => ({
       'Content-Type': 'application/json',
       'user-id': String(userId)
   });
+
+  // Calculate Overdue Forecasts (Before current month start, not realized)
+  const overdueForecasts = forecasts.filter(f => {
+      const fDate = new Date(f.date);
+      // Ajuste para garantir comparação correta ignorando horas (apenas datas)
+      const fDateMidnight = new Date(fDate.getFullYear(), fDate.getMonth(), fDate.getDate());
+      return fDateMidnight < startOfCurrentMonth && !f.realized;
+  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const overdueIncome = overdueForecasts.filter(f => f.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
+  const overdueExpense = overdueForecasts.filter(f => f.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
 
   // Initialize form when opening modal
   const openModal = (type: TransactionType) => {
@@ -48,6 +62,58 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
           isFixed: false
       });
       setIsModalOpen(true);
+  };
+
+  const handleRealizeForecast = async (forecast: Forecast) => {
+      if(!confirm('Confirmar realização desta previsão pendente?')) return;
+
+      try {
+        // 1. Mark as realized
+        await fetch(`/api/forecasts/${forecast.id}/realize`, { 
+            method: 'PATCH',
+            headers: getHeaders()
+        });
+        
+        // 2. Create transaction
+        const descSuffix = forecast.installmentTotal 
+            ? ` (${forecast.installmentCurrent}/${forecast.installmentTotal})` 
+            : (forecast.groupId ? ' (Recorrente Atrasado)' : ' (Atrasado)');
+
+        await fetch('/api/transactions', {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({
+                date: forecast.date, // Mantém a data original ou poderia ser new Date().toISOString() se quisesse data atual
+                description: forecast.description + descSuffix,
+                value: forecast.value,
+                type: forecast.type,
+                categoryId: forecast.categoryId,
+                bankId: forecast.bankId,
+                reconciled: false
+            })
+        });
+
+        onRefresh();
+        // Se não houver mais atrasados, fecha o modal
+        if (overdueForecasts.length <= 1) setIsOverdueModalOpen(false);
+
+      } catch (error) {
+          alert("Erro ao efetivar previsão.");
+      }
+  };
+
+  const handleDeleteForecast = async (id: number) => {
+      if(!confirm('Excluir esta previsão pendente?')) return;
+      try {
+          await fetch(`/api/forecasts/${id}`, { 
+            method: 'DELETE',
+            headers: getHeaders()
+          });
+          onRefresh();
+          if (overdueForecasts.length <= 1) setIsOverdueModalOpen(false);
+      } catch (e) {
+          alert("Erro ao excluir.");
+      }
   };
 
   const handleQuickSave = async (target: 'forecast' | 'transaction') => {
@@ -186,6 +252,42 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
 
   return (
     <div className="space-y-6">
+      
+      {/* Overdue Alert Banner */}
+      {overdueForecasts.length > 0 && (
+          <div 
+            onClick={() => setIsOverdueModalOpen(true)}
+            className="bg-amber-950/40 border border-amber-500/30 p-4 rounded-xl cursor-pointer hover:bg-amber-900/40 transition-all group animate-in fade-in slide-in-from-top-4"
+          >
+              <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center border border-amber-500/30 group-hover:scale-110 transition-transform">
+                          <AlertTriangle size={20} />
+                      </div>
+                      <div>
+                          <h3 className="font-bold text-amber-400">Pendências de Meses Anteriores</h3>
+                          <p className="text-sm text-amber-200/70">
+                              Você possui <strong className="text-amber-100">{overdueForecasts.length} previsões</strong> não realizadas.
+                          </p>
+                      </div>
+                  </div>
+                  <div className="flex items-center gap-6 text-right">
+                      <div className="hidden md:block">
+                          <p className="text-xs text-amber-200/70 uppercase">Receitas Pendentes</p>
+                          <p className="font-bold text-emerald-400">R$ {overdueIncome.toFixed(2)}</p>
+                      </div>
+                      <div className="hidden md:block">
+                          <p className="text-xs text-amber-200/70 uppercase">Despesas Pendentes</p>
+                          <p className="font-bold text-rose-400">R$ {overdueExpense.toFixed(2)}</p>
+                      </div>
+                      <div className="bg-amber-500 text-slate-900 px-3 py-1 rounded-lg text-xs font-bold shadow-lg shadow-amber-900/20 group-hover:bg-amber-400 transition-colors">
+                          Resolver
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       <div className="flex justify-between items-end">
         <div>
             <h1 className="text-2xl font-bold text-white">Dashboard</h1>
@@ -351,6 +453,81 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
              </div>
         </div>
       </div>
+
+       {/* Overdue Items Modal */}
+       {isOverdueModalOpen && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsOverdueModalOpen(false)} />
+            <div className="relative bg-surface border border-amber-500/30 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="px-6 py-4 border-b border-amber-500/20 bg-amber-950/30 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
+                            <CalendarClock size={20}/>
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-white">Pendências Anteriores</h3>
+                            <p className="text-xs text-amber-200/70">Itens previstos até o mês passado não realizados</p>
+                        </div>
+                    </div>
+                    <button onClick={() => setIsOverdueModalOpen(false)}><X size={20} className="text-slate-400 hover:text-white"/></button>
+                </div>
+                
+                <div className="p-6 overflow-y-auto max-h-[60vh] custom-scroll">
+                    <table className="w-full text-sm text-left">
+                        <thead className="text-slate-400 font-medium border-b border-slate-800">
+                            <tr>
+                                <th className="pb-3 pl-2">Data</th>
+                                <th className="pb-3">Descrição</th>
+                                <th className="pb-3 text-right">Valor</th>
+                                <th className="pb-3 text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                            {overdueForecasts.map(f => (
+                                <tr key={f.id} className="hover:bg-slate-800/30 transition-colors">
+                                    <td className="py-3 pl-2 text-amber-400 font-mono text-xs">
+                                        {new Date(f.date).toLocaleDateString('pt-BR')}
+                                    </td>
+                                    <td className="py-3 font-medium text-slate-200">
+                                        {f.description}
+                                        {f.installmentTotal ? (
+                                            <span className="ml-2 text-xs bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">
+                                                {f.installmentCurrent}/{f.installmentTotal}
+                                            </span>
+                                        ) : null}
+                                    </td>
+                                    <td className={`py-3 text-right font-bold ${f.type === TransactionType.DEBIT ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                        R$ {f.value.toFixed(2)}
+                                    </td>
+                                    <td className="py-3 flex justify-center gap-2">
+                                        <button 
+                                            onClick={() => handleRealizeForecast(f)}
+                                            className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded hover:bg-emerald-500/20 border border-emerald-500/20"
+                                            title="Efetivar Lançamento"
+                                        >
+                                            <Check size={16}/>
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDeleteForecast(f.id)}
+                                            className="p-1.5 bg-rose-500/10 text-rose-500 rounded hover:bg-rose-500/20 border border-rose-500/20"
+                                            title="Excluir Previsão"
+                                        >
+                                            <Trash2 size={16}/>
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="p-4 bg-slate-950/50 border-t border-slate-800 text-center">
+                    <p className="text-xs text-slate-500">
+                        Total Pendente: <span className="text-emerald-500">R$ {overdueIncome.toFixed(2)}</span> (Rec) - <span className="text-rose-500">R$ {overdueExpense.toFixed(2)}</span> (Desp)
+                    </p>
+                </div>
+            </div>
+         </div>
+       )}
 
        {/* Quick Add Modal */}
        {isModalOpen && (
