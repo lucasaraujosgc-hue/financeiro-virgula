@@ -7,26 +7,27 @@ import fs from 'fs';
 import nodemailer from 'nodemailer';
 
 // Mock Data Imports for Seeding (Used per user now)
+// Updated paths to include /logo/ prefix
 const INITIAL_BANKS_SEED = [
-  { name: 'Nubank', accountNumber: '1234-5', nickname: 'Principal', logo: '/nubank.jpg', active: 0, balance: 0 },
-  { name: 'Itaú', accountNumber: '9876-0', nickname: 'Reserva', logo: '/itau.png', active: 0, balance: 0 },
-  { name: 'Bradesco', accountNumber: '1111-2', nickname: 'PJ', logo: '/bradesco.jpg', active: 0, balance: 0 },
-  { name: 'Caixa Econômica', accountNumber: '0001-9', nickname: 'Caixa', logo: '/caixa.png', active: 0, balance: 0 },
-  { name: 'Banco do Brasil', accountNumber: '4455-6', nickname: 'BB', logo: '/bb.png', active: 0, balance: 0 },
-  { name: 'Santander', accountNumber: '7788-9', nickname: 'Santander', logo: '/santander.png', active: 0, balance: 0 },
-  { name: 'Inter', accountNumber: '3322-1', nickname: 'Inter', logo: '/inter.png', active: 0, balance: 0 },
-  { name: 'BTG Pactual', accountNumber: '5566-7', nickname: 'Investimentos', logo: '/btg_pactual.png', active: 0, balance: 0 },
-  { name: 'C6 Bank', accountNumber: '9988-7', nickname: 'C6', logo: '/c6_bank.png', active: 0, balance: 0 },
-  { name: 'Sicredi', accountNumber: '1212-3', nickname: 'Cooperativa', logo: '/sicredi.png', active: 0, balance: 0 },
-  { name: 'Sicoob', accountNumber: '3434-5', nickname: 'Sicoob', logo: '/sicoob.png', active: 0, balance: 0 },
-  { name: 'Mercado Pago', accountNumber: '0000-0', nickname: 'Vendas', logo: '/mercado_pago.png', active: 0, balance: 0 },
-  { name: 'PagBank', accountNumber: '0000-0', nickname: 'Maquininha', logo: '/pagbank.png', active: 0, balance: 0 },
-  { name: 'Stone', accountNumber: '0000-0', nickname: 'Stone', logo: '/stone.png', active: 0, balance: 0 },
-  { name: 'Banco Safra', accountNumber: '0000-0', nickname: 'Safra', logo: '/safra.png', active: 0, balance: 0 },
-  { name: 'Banco Pan', accountNumber: '0000-0', nickname: 'Pan', logo: '/banco_pan.png', active: 0, balance: 0 },
-  { name: 'Banrisul', accountNumber: '0000-0', nickname: 'Sul', logo: '/banrisul.png', active: 0, balance: 0 },
-  { name: 'Neon', accountNumber: '0000-0', nickname: 'Neon', logo: '/neon.png', active: 0, balance: 0 },
-  { name: 'Caixa Registradora', accountNumber: '-', nickname: 'Dinheiro Físico', logo: '/caixaf.png', active: 0, balance: 0 },
+  { name: 'Nubank', accountNumber: '1234-5', nickname: 'Principal', logo: '/logo/nubank.jpg', active: 0, balance: 0 },
+  { name: 'Itaú', accountNumber: '9876-0', nickname: 'Reserva', logo: '/logo/itau.png', active: 0, balance: 0 },
+  { name: 'Bradesco', accountNumber: '1111-2', nickname: 'PJ', logo: '/logo/bradesco.jpg', active: 0, balance: 0 },
+  { name: 'Caixa Econômica', accountNumber: '0001-9', nickname: 'Caixa', logo: '/logo/caixa.png', active: 0, balance: 0 },
+  { name: 'Banco do Brasil', accountNumber: '4455-6', nickname: 'BB', logo: '/logo/bb.png', active: 0, balance: 0 },
+  { name: 'Santander', accountNumber: '7788-9', nickname: 'Santander', logo: '/logo/santander.png', active: 0, balance: 0 },
+  { name: 'Inter', accountNumber: '3322-1', nickname: 'Inter', logo: '/logo/inter.png', active: 0, balance: 0 },
+  { name: 'BTG Pactual', accountNumber: '5566-7', nickname: 'Investimentos', logo: '/logo/btg_pactual.png', active: 0, balance: 0 },
+  { name: 'C6 Bank', accountNumber: '9988-7', nickname: 'C6', logo: '/logo/c6_bank.png', active: 0, balance: 0 },
+  { name: 'Sicredi', accountNumber: '1212-3', nickname: 'Cooperativa', logo: '/logo/sicredi.png', active: 0, balance: 0 },
+  { name: 'Sicoob', accountNumber: '3434-5', nickname: 'Sicoob', logo: '/logo/sicoob.png', active: 0, balance: 0 },
+  { name: 'Mercado Pago', accountNumber: '0000-0', nickname: 'Vendas', logo: '/logo/mercado_pago.png', active: 0, balance: 0 },
+  { name: 'PagBank', accountNumber: '0000-0', nickname: 'Maquininha', logo: '/logo/pagbank.png', active: 0, balance: 0 },
+  { name: 'Stone', accountNumber: '0000-0', nickname: 'Stone', logo: '/logo/stone.png', active: 0, balance: 0 },
+  { name: 'Banco Safra', accountNumber: '0000-0', nickname: 'Safra', logo: '/logo/safra.png', active: 0, balance: 0 },
+  { name: 'Banco Pan', accountNumber: '0000-0', nickname: 'Pan', logo: '/logo/banco_pan.png', active: 0, balance: 0 },
+  { name: 'Banrisul', accountNumber: '0000-0', nickname: 'Sul', logo: '/logo/banrisul.png', active: 0, balance: 0 },
+  { name: 'Neon', accountNumber: '0000-0', nickname: 'Neon', logo: '/logo/neon.png', active: 0, balance: 0 },
+  { name: 'Caixa Registradora', accountNumber: '-', nickname: 'Dinheiro Físico', logo: '/logo/caixaf.png', active: 0, balance: 0 },
 ];
 
 const RECEITAS_LIST = [
@@ -89,7 +90,7 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-const sendEmail = async (to, subject, text) => {
+const sendEmail = async (to, subject, htmlContent) => {
   console.log(`[EMAIL] Iniciando envio para: ${to}`);
   
   if (!process.env.MAIL_SERVER || !process.env.MAIL_USERNAME) {
@@ -102,13 +103,7 @@ const sendEmail = async (to, subject, text) => {
           from: `"Virgula Contábil" <${process.env.MAIL_USERNAME}>`,
           to: to,
           subject: subject,
-          text: text,
-          html: `<div style="font-family: Arial, sans-serif; color: #333;">
-                    <h2>${subject}</h2>
-                    <p>${text}</p>
-                    <hr>
-                    <p style="font-size: 12px; color: #999;">Virgula Contábil</p>
-                 </div>`
+          html: htmlContent
       });
       console.log(`[EMAIL] Sucesso! ID: ${info.messageId}`);
       return true;
@@ -260,7 +255,15 @@ app.post('/api/signup', (req, res) => {
       });
       catStmt.finalize();
 
-      await sendEmail(email, "Bem-vindo a Virgula Contábil", "Seu cadastro foi realizado com sucesso.");
+      const welcomeHtml = `
+        <div style="font-family: Arial, sans-serif; color: #333;">
+            <h2>Bem-vindo à Virgula Contábil</h2>
+            <p>Seu cadastro foi realizado com sucesso.</p>
+            <hr>
+            <p style="font-size: 12px; color: #999;">Virgula Contábil</p>
+        </div>
+      `;
+      await sendEmail(email, "Bem-vindo a Virgula Contábil", welcomeHtml);
       res.json({ id: newUserId, email, razaoSocial });
     }
   );
@@ -281,7 +284,28 @@ app.post('/api/recover-password', (req, res) => {
         if (!row) {
              return res.status(404).json({error: "Email não encontrado"});
         }
-        await sendEmail(email, "Recuperação de Senha", "Clique aqui para redefinir: https://seu-app.com/reset");
+        
+        const resetHtml = `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px; border-radius: 8px;">
+          <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="text-align: center; margin-bottom: 20px;">
+               <h1 style="color: #10b981; margin: 0; font-size: 24px;">Virgula Contábil</h1>
+            </div>
+            <h2 style="color: #333333; margin-top: 0; font-size: 20px;">Recuperação de Senha</h2>
+            <p style="color: #666666; font-size: 16px; line-height: 1.5;">Olá,</p>
+            <p style="color: #666666; font-size: 16px; line-height: 1.5;">Recebemos uma solicitação para redefinir a senha da sua conta. Se você não fez essa solicitação, pode ignorar este e-mail.</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="https://seu-app.com/reset" style="background-color: #10b981; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">Redefinir Minha Senha</a>
+            </div>
+            <p style="color: #999999; font-size: 14px; margin-top: 30px; border-top: 1px solid #eeeeee; padding-top: 20px; line-height: 1.4;">
+              Se o botão acima não funcionar, copie e cole o link abaixo no seu navegador:<br>
+              <a href="https://seu-app.com/reset" style="color: #10b981;">https://seu-app.com/reset</a>
+            </p>
+          </div>
+        </div>
+        `;
+
+        await sendEmail(email, "Recuperação de Senha - Virgula Contábil", resetHtml);
         res.json({ message: 'Email de recuperação enviado.' });
     });
 });
@@ -424,7 +448,7 @@ app.post('/api/transactions', checkAuth, (req, res) => {
   const { date, description, value, type, categoryId, bankId, reconciled, ofxImportId } = req.body;
   db.run(
     `INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, reconciled, ofx_import_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [req.userId, date, description, value, type, categoryId, bankId, reconciled ? 1 : 0, ofxImportId || null],
+    [req.userId, date, description, value, type, category_id, bankId, reconciled ? 1 : 0, ofxImportId || null],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ id: this.lastID, ...req.body });
@@ -555,7 +579,7 @@ app.post('/api/forecasts', checkAuth, (req, res) => {
     db.run(
         `INSERT INTO forecasts (user_id, date, description, value, type, category_id, bank_id, realized, installment_current, installment_total, group_id) 
          VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-        [req.userId, date, description, value, type, categoryId, bankId, installmentCurrent, installmentTotal, groupId],
+        [req.userId, date, description, value, type, category_id, bankId, installmentCurrent, installmentTotal, groupId],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ id: this.lastID });
