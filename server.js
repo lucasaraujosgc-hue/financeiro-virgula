@@ -5,9 +5,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import nodemailer from 'nodemailer';
+import crypto from 'crypto';
 
 // Mock Data Imports for Seeding (Used per user now)
-// Updated paths to include /logo/ prefix
 const INITIAL_BANKS_SEED = [
   { name: 'Nubank', accountNumber: '1234-5', nickname: 'Principal', logo: '/logo/nubank.jpg', active: 0, balance: 0 },
   { name: 'Itaú', accountNumber: '9876-0', nickname: 'Reserva', logo: '/logo/itau.png', active: 0, balance: 0 },
@@ -150,7 +150,16 @@ db.serialize(() => {
     password TEXT,
     cnpj TEXT,
     razao_social TEXT,
-    phone TEXT
+    phone TEXT,
+    reset_token TEXT,
+    reset_token_expires INTEGER
+  )`);
+
+  // Pending Signups (New Table)
+  db.run(`CREATE TABLE IF NOT EXISTS pending_signups (
+    email TEXT PRIMARY KEY,
+    token TEXT,
+    created_at INTEGER
   )`);
 
   // Banks (Added user_id)
@@ -231,42 +240,88 @@ db.serialize(() => {
 
 // --- API Routes ---
 
-// AUTH
-app.post('/api/signup', (req, res) => {
-  const { email, password, cnpj, razaoSocial, phone } = req.body;
-  db.run(
-    `INSERT INTO users (email, password, cnpj, razao_social, phone) VALUES (?, ?, ?, ?, ?)`,
-    [email, password, cnpj, razaoSocial, phone],
-    async function(err) {
+// 1. REQUEST SIGNUP (Send Email)
+app.post('/api/request-signup', (req, res) => {
+    const { email } = req.body;
+    
+    // Check if user already exists
+    db.get('SELECT id FROM users WHERE email = ?', [email], async (err, row) => {
+        if (row) return res.status(400).json({ error: "E-mail já cadastrado." });
+
+        const token = crypto.randomBytes(20).toString('hex');
+        const createdAt = Date.now();
+
+        db.run(
+            `INSERT OR REPLACE INTO pending_signups (email, token, created_at) VALUES (?, ?, ?)`,
+            [email, token, createdAt],
+            async function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+
+                const origin = req.headers.origin || 'https://seu-app.com';
+                const link = `${origin}/?action=signup&token=${token}`;
+
+                const html = `
+                <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
+                    <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                        <h1 style="color: #10b981; margin: 0 0 20px 0;">Finalizar Cadastro</h1>
+                        <p style="color: #334155; font-size: 16px; margin-bottom: 30px;">
+                            Você solicitou o cadastro na Virgula Contábil. Clique no botão abaixo para preencher seus dados e ativar sua conta.
+                        </p>
+                        <a href="${link}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+                            Continuar Cadastro
+                        </a>
+                        <p style="color: #94a3b8; font-size: 12px; margin-top: 30px;">
+                            Se você não solicitou este cadastro, ignore este e-mail.
+                        </p>
+                    </div>
+                </div>
+                `;
+
+                await sendEmail(email, "Finalize seu cadastro - Virgula Contábil", html);
+                res.json({ message: "Link de cadastro enviado." });
+            }
+        );
+    });
+});
+
+// 2. COMPLETE SIGNUP (With Token)
+app.post('/api/complete-signup', (req, res) => {
+  const { email, password, cnpj, razaoSocial, phone, token } = req.body;
+
+  // Validate Token
+  db.get('SELECT * FROM pending_signups WHERE email = ? AND token = ?', [email, token], (err, row) => {
       if (err) return res.status(500).json({ error: err.message });
-      
-      const newUserId = this.lastID;
+      if (!row) return res.status(400).json({ error: "Token inválido ou expirado." });
 
-      // Seed Initial Data for THIS user
-      const bankStmt = db.prepare("INSERT INTO banks (user_id, name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, ?, ?, ?)");
-      INITIAL_BANKS_SEED.forEach(b => {
-          bankStmt.run(newUserId, b.name, b.accountNumber, b.nickname, b.logo, b.active, b.balance);
-      });
-      bankStmt.finalize();
+      // Create User
+      db.run(
+        `INSERT INTO users (email, password, cnpj, razao_social, phone) VALUES (?, ?, ?, ?, ?)`,
+        [email, password, cnpj, razaoSocial, phone],
+        async function(err) {
+          if (err) return res.status(500).json({ error: err.message });
+          
+          const newUserId = this.lastID;
 
-      const catStmt = db.prepare("INSERT INTO categories (user_id, name, type) VALUES (?, ?, ?)");
-      INITIAL_CATEGORIES_SEED.forEach(c => {
-          catStmt.run(newUserId, c.name, c.type);
-      });
-      catStmt.finalize();
+          // Remove Pending
+          db.run('DELETE FROM pending_signups WHERE email = ?', [email]);
 
-      const welcomeHtml = `
-        <div style="font-family: Arial, sans-serif; color: #333;">
-            <h2>Bem-vindo à Virgula Contábil</h2>
-            <p>Seu cadastro foi realizado com sucesso.</p>
-            <hr>
-            <p style="font-size: 12px; color: #999;">Virgula Contábil</p>
-        </div>
-      `;
-      await sendEmail(email, "Bem-vindo a Virgula Contábil", welcomeHtml);
-      res.json({ id: newUserId, email, razaoSocial });
-    }
-  );
+          // Seed Initial Data
+          const bankStmt = db.prepare("INSERT INTO banks (user_id, name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, ?, ?, ?)");
+          INITIAL_BANKS_SEED.forEach(b => {
+              bankStmt.run(newUserId, b.name, b.accountNumber, b.nickname, b.logo, b.active, b.balance);
+          });
+          bankStmt.finalize();
+
+          const catStmt = db.prepare("INSERT INTO categories (user_id, name, type) VALUES (?, ?, ?)");
+          INITIAL_CATEGORIES_SEED.forEach(c => {
+              catStmt.run(newUserId, c.name, c.type);
+          });
+          catStmt.finalize();
+
+          res.json({ id: newUserId, email, razaoSocial });
+        }
+      );
+  });
 });
 
 app.post('/api/login', (req, res) => {
@@ -278,37 +333,78 @@ app.post('/api/login', (req, res) => {
   });
 });
 
+// 3. RECOVER PASSWORD (Update to use token in DB)
 app.post('/api/recover-password', (req, res) => {
     const { email } = req.body;
     db.get(`SELECT * FROM users WHERE email = ?`, [email], async (err, row) => {
         if (!row) {
-             return res.status(404).json({error: "Email não encontrado"});
+             // Return success even if not found to prevent enumeration
+             return res.json({ message: 'Se o email existir, as instruções foram enviadas.' });
         }
         
-        const resetHtml = `
-        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px; border-radius: 8px;">
-          <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <div style="text-align: center; margin-bottom: 20px;">
-               <h1 style="color: #10b981; margin: 0; font-size: 24px;">Virgula Contábil</h1>
-            </div>
-            <h2 style="color: #333333; margin-top: 0; font-size: 20px;">Recuperação de Senha</h2>
-            <p style="color: #666666; font-size: 16px; line-height: 1.5;">Olá,</p>
-            <p style="color: #666666; font-size: 16px; line-height: 1.5;">Recebemos uma solicitação para redefinir a senha da sua conta. Se você não fez essa solicitação, pode ignorar este e-mail.</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="https://seu-app.com/reset" style="background-color: #10b981; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">Redefinir Minha Senha</a>
-            </div>
-            <p style="color: #999999; font-size: 14px; margin-top: 30px; border-top: 1px solid #eeeeee; padding-top: 20px; line-height: 1.4;">
-              Se o botão acima não funcionar, copie e cole o link abaixo no seu navegador:<br>
-              <a href="https://seu-app.com/reset" style="color: #10b981;">https://seu-app.com/reset</a>
-            </p>
-          </div>
-        </div>
-        `;
+        const token = crypto.randomBytes(20).toString('hex');
+        const expires = Date.now() + 3600000; // 1 hour
 
-        await sendEmail(email, "Recuperação de Senha - Virgula Contábil", resetHtml);
-        res.json({ message: 'Email de recuperação enviado.' });
+        db.run('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?', [token, expires, row.id], async (err) => {
+            if (err) return res.status(500).json({error: err.message});
+
+            const origin = req.headers.origin || 'https://seu-app.com';
+            const link = `${origin}/?action=reset&token=${token}`;
+
+            const resetHtml = `
+            <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
+            <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                <h1 style="color: #10b981; margin: 0 0 20px 0;">Recuperação de Senha</h1>
+                <p style="color: #334155; font-size: 16px; margin-bottom: 30px;">
+                    Recebemos uma solicitação para redefinir a senha da sua conta na Virgula Contábil.
+                </p>
+                <a href="${link}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+                    Redefinir Minha Senha
+                </a>
+                <p style="color: #94a3b8; font-size: 12px; margin-top: 30px;">
+                    O link expira em 1 hora. Se o botão não funcionar, copie: ${link}
+                </p>
+            </div>
+            </div>
+            `;
+
+            await sendEmail(email, "Recuperação de Senha - Virgula Contábil", resetHtml);
+            res.json({ message: 'Email de recuperação enviado.' });
+        });
     });
 });
+
+// 4. CONFIRM PASSWORD RESET (New Endpoint)
+app.post('/api/reset-password-confirm', (req, res) => {
+    const { token, newPassword } = req.body;
+    
+    db.get(
+        'SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?', 
+        [token, Date.now()], 
+        (err, row) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if (!row) return res.status(400).json({ error: "Link de recuperação inválido ou expirado." });
+
+            db.run(
+                'UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
+                [newPassword, row.id],
+                (err) => {
+                    if (err) return res.status(500).json({ error: err.message });
+                    res.json({ message: "Senha alterada com sucesso." });
+                }
+            );
+        }
+    );
+});
+
+// GET TOKEN INFO (Optional helper to validate on frontend load)
+app.get('/api/validate-signup-token/:token', (req, res) => {
+    db.get('SELECT email FROM pending_signups WHERE token = ?', [req.params.token], (err, row) => {
+        if (err || !row) return res.status(404).json({ valid: false });
+        res.json({ valid: true, email: row.email });
+    });
+});
+
 
 // GENERIC MIDDLEWARE
 const checkAuth = (req, res, next) => {

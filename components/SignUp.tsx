@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { UserPlus, Mail, Lock, Building2, Phone, FileText, ArrowLeft, ArrowRight, X, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { UserPlus, Mail, Lock, Building2, Phone, FileText, ArrowRight, ShieldCheck, X } from 'lucide-react';
 
 interface SignUpProps {
+  token: string | null;
   onSignUp: (data: any) => void;
-  onBack: () => void;
   isLoading: boolean;
 }
 
@@ -51,7 +51,7 @@ O código, design, estrutura e todas as funcionalidades do Sistema são de propr
 9.2. Alterações: Reservamo-nos o direito de modificar estes Termos a qualquer momento. Quaisquer alterações entrarão em vigor após a publicação da versão atualizada no Sistema. O uso continuado do Sistema após a publicação constitui aceitação de tais alterações.
 `;
 
-const SignUp: React.FC<SignUpProps> = ({ onSignUp, onBack, isLoading }) => {
+const SignUp: React.FC<SignUpProps> = ({ token, onSignUp, isLoading }) => {
   const [formData, setFormData] = useState({
     cnpj: '',
     razaoSocial: '',
@@ -63,6 +63,30 @@ const SignUp: React.FC<SignUpProps> = ({ onSignUp, onBack, isLoading }) => {
 
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [validatingToken, setValidatingToken] = useState(true);
+  const [tokenError, setTokenError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Validate token and fetch email
+    if (token) {
+        fetch(`/api/validate-signup-token/${token}`)
+            .then(res => {
+                if (!res.ok) throw new Error("Link inválido ou expirado.");
+                return res.json();
+            })
+            .then(data => {
+                setFormData(prev => ({ ...prev, email: data.email }));
+                setValidatingToken(false);
+            })
+            .catch(err => {
+                setTokenError(err.message);
+                setValidatingToken(false);
+            });
+    } else {
+        setTokenError("Token de cadastro não fornecido.");
+        setValidatingToken(false);
+    }
+  }, [token]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,12 +101,33 @@ const SignUp: React.FC<SignUpProps> = ({ onSignUp, onBack, isLoading }) => {
       return;
     }
 
-    onSignUp(formData);
+    // Send token along with data
+    onSignUp({ ...formData, token });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
+
+  if (validatingToken) {
+      return (
+          <div className="min-h-screen bg-background flex items-center justify-center text-slate-400">
+              Validando link de cadastro...
+          </div>
+      );
+  }
+
+  if (tokenError) {
+      return (
+          <div className="min-h-screen bg-background flex items-center justify-center p-4">
+              <div className="bg-surface p-8 rounded-xl border border-red-900/50 text-center max-w-md">
+                  <h2 className="text-xl font-bold text-red-500 mb-2">Erro no Link</h2>
+                  <p className="text-slate-400">{tokenError}</p>
+                  <a href="/" className="mt-4 inline-block text-primary hover:underline">Voltar ao início</a>
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -94,20 +139,10 @@ const SignUp: React.FC<SignUpProps> = ({ onSignUp, onBack, isLoading }) => {
             <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-6 border border-primary/30">
               <UserPlus className="w-6 h-6 text-primary" />
             </div>
-            <h2 className="text-3xl font-bold mb-4">Primeiro Acesso</h2>
+            <h2 className="text-3xl font-bold mb-4">Finalizar Cadastro</h2>
             <p className="text-slate-400 text-sm leading-relaxed">
-              Crie sua conta empresarial para ter controle total sobre suas finanças, conciliação bancária e previsões.
+              Complete os dados da sua empresa para ter acesso total à plataforma.
             </p>
-          </div>
-          
-          <div className="mt-8 relative z-10">
-            <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Já tem conta?</p>
-            <button 
-              onClick={onBack}
-              className="flex items-center gap-2 text-sm font-medium text-primary hover:text-emerald-400 transition-colors"
-            >
-              <ArrowLeft size={16} /> Voltar para Login
-            </button>
           </div>
         </div>
 
@@ -144,16 +179,16 @@ const SignUp: React.FC<SignUpProps> = ({ onSignUp, onBack, isLoading }) => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 <div className="relative">
+                 <div className="relative opacity-60">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                   <input
                     name="email"
                     type="email"
                     required
+                    readOnly
                     value={formData.email}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white placeholder-slate-600"
-                    placeholder="Email Corporativo"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg cursor-not-allowed outline-none text-sm text-slate-400"
+                    title="O e-mail foi validado e não pode ser alterado"
                   />
                 </div>
                 <div className="relative">

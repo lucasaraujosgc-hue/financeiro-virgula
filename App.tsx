@@ -6,7 +6,9 @@ import BankList from './components/BankList';
 import Reports from './components/Reports';
 import Login from './components/Login';
 import ForgotPassword from './components/ForgotPassword';
+import PreSignUp from './components/PreSignUp';
 import SignUp from './components/SignUp';
+import ResetPassword from './components/ResetPassword';
 import Forecasts from './components/Forecasts';
 import OFXImports from './components/OFXImports';
 import Categories from './components/Categories';
@@ -17,7 +19,8 @@ function App() {
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<any>(null); // Store user info
-  const [authView, setAuthView] = useState<'login' | 'forgot' | 'signup'>('login');
+  const [authView, setAuthView] = useState<'login' | 'forgot' | 'presignup' | 'signup' | 'reset'>('login');
+  const [urlToken, setUrlToken] = useState<string | null>(null); // For handling email links
   const [isLoading, setIsLoading] = useState(false);
 
   // App State
@@ -30,13 +33,30 @@ function App() {
   const [forecasts, setForecasts] = useState<Forecast[]>([]);
   const [keywordRules, setKeywordRules] = useState<KeywordRule[]>([]);
 
-  // Check LocalStorage for "Remember Me"
+  // Check LocalStorage & URL Params on Mount
   useEffect(() => {
-    const savedAuth = localStorage.getItem('finance_app_auth');
-    if (savedAuth) {
-      const userData = JSON.parse(savedAuth);
-      setUser(userData);
-      setIsAuthenticated(true);
+    // 1. Check URL Params for Email Links (Reset Password or Signup)
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get('action');
+    const token = params.get('token');
+
+    if (action && token) {
+        setUrlToken(token);
+        if (action === 'signup') {
+            setAuthView('signup');
+        } else if (action === 'reset') {
+            setAuthView('reset');
+        }
+        // Clean URL to avoid re-triggering on refresh (optional, but good UX)
+        window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+        // 2. Only check local storage if no URL action
+        const savedAuth = localStorage.getItem('finance_app_auth');
+        if (savedAuth) {
+            const userData = JSON.parse(savedAuth);
+            setUser(userData);
+            setIsAuthenticated(true);
+        }
     }
   }, []);
 
@@ -327,6 +347,7 @@ function App() {
           setAuthView('login');
           setActiveTab('dashboard');
           setUser(null);
+          setUrlToken(null);
           localStorage.removeItem('finance_app_auth');
           setBanks([]);
           setTransactions([]);
@@ -364,17 +385,18 @@ function App() {
     }
   };
 
-  const handleSignUp = async (data: any) => {
+  const handleCompleteSignUp = async (data: any) => {
     setIsLoading(true);
     try {
-        const res = await fetch('/api/signup', {
+        const res = await fetch('/api/complete-signup', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
         });
         if (res.ok) {
-            alert("Cadastro realizado com sucesso! Um e-mail de confirmação foi enviado.");
+            alert("Conta criada com sucesso! Faça login para continuar.");
             setAuthView('login');
+            setUrlToken(null);
         } else {
             const err = await res.json();
             alert(err.error || "Erro no cadastro");
@@ -407,14 +429,20 @@ function App() {
     if (authView === 'forgot') {
       return <ForgotPassword onBack={() => setAuthView('login')} onSubmit={handleForgotPassword} />;
     }
+    if (authView === 'presignup') {
+        return <PreSignUp onBack={() => setAuthView('login')} isLoading={isLoading} />;
+    }
     if (authView === 'signup') {
-        return <SignUp onSignUp={handleSignUp} onBack={() => setAuthView('login')} isLoading={isLoading} />;
+        return <SignUp token={urlToken} onSignUp={handleCompleteSignUp} isLoading={isLoading} />;
+    }
+    if (authView === 'reset') {
+        return <ResetPassword token={urlToken || ''} onSuccess={() => setAuthView('login')} />;
     }
     return (
       <Login 
         onLogin={handleLogin} 
         onForgotPassword={() => setAuthView('forgot')} 
-        onSignUp={() => setAuthView('signup')}
+        onSignUp={() => setAuthView('presignup')}
         isLoading={isLoading}
       />
     );
