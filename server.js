@@ -1098,7 +1098,7 @@ app.get('/api/reports/analysis', checkAuth, (req, res) => {
     const y = parseInt(year);
     const m = month ? parseInt(month) : null;
 
-    let query = `SELECT t.*, c.name as category_name 
+    let query = `SELECT t.*, c.name as category_name, c.type as category_type 
                  FROM transactions t 
                  LEFT JOIN categories c ON t.category_id = c.id 
                  WHERE t.user_id = ? AND strftime('%Y', t.date) = ?`;
@@ -1118,6 +1118,18 @@ app.get('/api/reports/analysis', checkAuth, (req, res) => {
         let totalReceitas = 0;
         let totalDespesas = 0;
 
+        // DRE Logic to calculate KPIs
+        let dre = {
+            receitaBruta: 0,
+            deducoes: 0,
+            cmv: 0,
+            despesasOperacionais: 0,
+            resultadoFinanceiro: 0,
+            receitaNaoOperacional: 0,
+            despesaNaoOperacional: 0,
+            impostos: 0 
+        };
+
         rows.forEach(r => {
             const catName = r.category_name || 'Outros';
             if (r.type === 'credito') {
@@ -1127,13 +1139,72 @@ app.get('/api/reports/analysis', checkAuth, (req, res) => {
                 despesas[catName] = (despesas[catName] || 0) + r.value;
                 totalDespesas += r.value;
             }
+
+            // DRE Categorization
+            const cat = (r.category_name || '').toLowerCase();
+            const val = r.value;
+            const isCredit = r.type === 'credito';
+
+            if (cat.includes('transferências internas') || cat.includes('aportes de sócios') || cat.includes('distribuição de lucros')) return;
+
+            if (cat.includes('vendas de mercadorias') || cat.includes('prestação de serviços') || cat.includes('comissões recebidas') || cat.includes('receita de aluguel')) {
+                 if (isCredit) dre.receitaBruta += val;
+            }
+            else if (cat.includes('impostos e taxas') || cat.includes('icms') || cat.includes('iss') || cat.includes('das') || cat.includes('devoluções')) {
+                 if (!isCredit) dre.deducoes += val;
+            }
+            else if (cat.includes('compra de mercadorias') || cat.includes('matéria-prima') || cat.includes('fretes') || cat.includes('custos diretos')) {
+                 if (!isCredit) dre.cmv += val;
+            }
+            else if (cat.includes('receita financeira')) {
+                 if (isCredit) dre.resultadoFinanceiro += val;
+            }
+            else if (cat.includes('despesas financeiras') || cat.includes('juros')) {
+                 if (!isCredit) dre.resultadoFinanceiro -= val;
+            }
+            else if (cat.includes('receitas não operacionais')) {
+                 if (isCredit) dre.receitaNaoOperacional += val;
+            }
+            else if (cat.includes('despesas não operacionais')) {
+                 if (!isCredit) dre.despesaNaoOperacional += val;
+            }
+            else if (cat.includes('irpj') || cat.includes('csll')) {
+                 if (!isCredit) dre.impostos += val;
+            }
+            else if (!isCredit) {
+                dre.despesasOperacionais += val;
+            }
         });
+
+        // KPI Calculations
+        const receitaLiquida = dre.receitaBruta - dre.deducoes;
+        const resultadoBruto = receitaLiquida - dre.cmv;
+        const resultadoOperacional = resultadoBruto - dre.despesasOperacionais;
+        const resultadoNaoOperacionalTotal = dre.receitaNaoOperacional - dre.despesaNaoOperacional;
+        const resultadoAntesImpostos = resultadoOperacional + dre.resultadoFinanceiro + resultadoNaoOperacionalTotal;
+        const lucroLiquido = resultadoAntesImpostos - dre.impostos;
+
+        // Percentages
+        // 1. Margem de Contribuição % = (Receita Líquida - Custos Variáveis (CMV)) / Receita Líquida * 100
+        const margemContribuicaoVal = receitaLiquida - dre.cmv;
+        const margemContribuicaoPct = receitaLiquida > 0 ? (margemContribuicaoVal / receitaLiquida) * 100 : 0;
+
+        // 2. Resultado Operacional % = Resultado Operacional / Receita Líquida * 100
+        const resultadoOperacionalPct = receitaLiquida > 0 ? (resultadoOperacional / receitaLiquida) * 100 : 0;
+
+        // 3. Resultado Líquido % = Lucro Líquido / Receita Líquida * 100
+        const resultadoLiquidoPct = receitaLiquida > 0 ? (lucroLiquido / receitaLiquida) * 100 : 0;
 
         res.json({
             receitas,
             despesas,
             totalReceitas,
-            totalDespesas
+            totalDespesas,
+            kpis: {
+                margemContribuicaoPct,
+                resultadoOperacionalPct,
+                resultadoLiquidoPct
+            }
         });
     });
 });

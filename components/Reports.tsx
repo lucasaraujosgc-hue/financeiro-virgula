@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, Category } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ComposedChart, Line } from 'recharts';
-import { ChevronLeft, ChevronRight, Filter, Download, CalendarRange } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Download, CalendarRange, Percent, Activity, TrendingUp } from 'lucide-react';
 
 interface ReportsProps {
   transactions: Transaction[];
@@ -279,8 +279,51 @@ const Reports: React.FC<ReportsProps> = () => {
       // Validate correct data shape for Analysis
       if (!data || !data.receitas) return null;
 
+      // KPI Helper
+      const KPI = ({ title, value, icon, tooltip }: any) => (
+          <div className="bg-surface p-4 rounded-xl border border-slate-800 shadow-sm flex flex-col justify-between h-full">
+              <div className="flex justify-between items-start mb-2">
+                  <div className="p-1.5 bg-slate-800 rounded-lg text-primary border border-slate-700">
+                      {icon}
+                  </div>
+                  <span className={`text-xl font-bold ${value >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {value.toFixed(2)}%
+                  </span>
+              </div>
+              <div>
+                  <h4 className="text-slate-200 font-semibold text-sm">{title}</h4>
+                  <p className="text-slate-500 text-xs mt-1">{tooltip}</p>
+              </div>
+          </div>
+      );
+
       return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              
+              {/* KPIs Row */}
+              {data.kpis && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <KPI 
+                        title="Margem de Contribuição" 
+                        value={data.kpis.margemContribuicaoPct} 
+                        icon={<Percent size={18}/>}
+                        tooltip="Quanto sobra da receita para pagar custos fixos e gerar lucro."
+                      />
+                      <KPI 
+                        title="Resultado Operacional" 
+                        value={data.kpis.resultadoOperacionalPct} 
+                        icon={<Activity size={18}/>}
+                        tooltip="Proporção de lucro operacional sobre a receita líquida."
+                      />
+                      <KPI 
+                        title="Resultado Líquido" 
+                        value={data.kpis.resultadoLiquidoPct} 
+                        icon={<TrendingUp size={18}/>}
+                        tooltip="Lucro líquido final como porcentagem da receita bruta."
+                      />
+                  </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-surface p-6 rounded-xl border border-slate-800">
                       <h3 className="text-white font-bold mb-4">Análise de Receitas</h3>
