@@ -14,6 +14,7 @@ import OFXImports from './components/OFXImports';
 import Categories from './components/Categories';
 import KeywordRules from './components/KeywordRules';
 import Tutorial from './components/Tutorial';
+import AdminPanel from './components/AdminPanel'; // Import Admin Panel
 import { Transaction, Bank, Category, Forecast, KeywordRule } from './types';
 
 function App() {
@@ -64,7 +65,10 @@ function App() {
   // Fetch Core Data on Auth
   useEffect(() => {
     if (isAuthenticated && user?.id) {
-        fetchInitialData();
+        // Se for admin, não busca dados de usuário comum
+        if (user.role !== 'admin') {
+            fetchInitialData();
+        }
     }
   }, [isAuthenticated, user]);
 
@@ -427,7 +431,12 @@ function App() {
     );
   }
 
-  // Authenticated App Content
+  // ADMIN VIEW
+  if (user?.role === 'admin') {
+      return <AdminPanel onLogout={handleLogout} />;
+  }
+
+  // USER VIEW
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':

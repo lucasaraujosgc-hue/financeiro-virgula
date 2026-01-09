@@ -99,8 +99,12 @@ const sendEmail = async (to, subject, htmlContent) => {
   }
 
   try {
+      // Configuração do ALIAS e FROM NAME
+      const fromName = process.env.MAIL_FROM_NAME || "Virgula Contábil";
+      const fromAddress = process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME;
+      
       const info = await transporter.sendMail({
-          from: `"Virgula Contábil" <${process.env.MAIL_USERNAME}>`,
+          from: `"${fromName}" <${fromAddress}>`,
           to: to,
           subject: subject,
           html: htmlContent
@@ -117,10 +121,23 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Middleware para validar userId
+// Middleware para validar userId e Admin
 const getUserId = (req) => {
     const userId = req.headers['user-id'];
-    return userId ? Number(userId) : null;
+    return userId ? String(userId) : null;
+};
+
+const checkAuth = (req, res, next) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    req.userId = userId;
+    next();
+};
+
+const checkAdmin = (req, res, next) => {
+    const userId = getUserId(req);
+    if (userId !== 'admin') return res.status(403).json({ error: "Forbidden: Admin access only" });
+    next();
 };
 
 // Database Setup
@@ -155,13 +172,12 @@ db.serialize(() => {
     reset_token_expires INTEGER
   )`, (err) => {
       if (!err) {
-          // MIGRATION FIX: Ensure reset_token columns exist for old DBs
           db.run("ALTER TABLE users ADD COLUMN reset_token TEXT", () => {});
           db.run("ALTER TABLE users ADD COLUMN reset_token_expires INTEGER", () => {});
       }
   });
 
-  // Pending Signups (Updated Schema)
+  // Pending Signups
   db.run(`CREATE TABLE IF NOT EXISTS pending_signups (
     email TEXT PRIMARY KEY,
     token TEXT,
@@ -170,8 +186,6 @@ db.serialize(() => {
     phone TEXT,
     created_at INTEGER
   )`, (err) => {
-      // MIGRATION: If table existed with old schema, drop and recreate (dev mode) or add columns
-      // For simplicity in this context, we'll try to add columns if they are missing
       if (!err) {
           db.run("ALTER TABLE pending_signups ADD COLUMN cnpj TEXT", () => {});
           db.run("ALTER TABLE pending_signups ADD COLUMN razao_social TEXT", () => {});
@@ -179,7 +193,7 @@ db.serialize(() => {
       }
   });
 
-  // Banks (Added user_id)
+  // Banks
   db.run(`CREATE TABLE IF NOT EXISTS banks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -192,7 +206,7 @@ db.serialize(() => {
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 
-  // Categories (Added user_id)
+  // Categories
   db.run(`CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -201,7 +215,7 @@ db.serialize(() => {
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 
-  // OFX (Added user_id)
+  // OFX
   db.run(`CREATE TABLE IF NOT EXISTS ofx_imports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -212,7 +226,7 @@ db.serialize(() => {
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 
-  // Transactions (Added user_id)
+  // Transactions
   db.run(`CREATE TABLE IF NOT EXISTS transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -227,7 +241,7 @@ db.serialize(() => {
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 
-  // Forecasts (Added user_id)
+  // Forecasts
   db.run(`CREATE TABLE IF NOT EXISTS forecasts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -244,7 +258,7 @@ db.serialize(() => {
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 
-  // Keyword Rules (NEW TABLE)
+  // Keyword Rules
   db.run(`CREATE TABLE IF NOT EXISTS keyword_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -255,9 +269,100 @@ db.serialize(() => {
   )`);
 });
 
-// --- API Routes ---
+// --- ADMIN ROUTES ---
 
-// 1. REQUEST SIGNUP (Stores Data & Sends Email)
+// 1. Get All Users
+app.get('/api/admin/users', checkAdmin, (req, res) => {
+    db.all('SELECT id, email, cnpj, razao_social, phone FROM users', [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+// 2. Delete User & All Data
+app.delete('/api/admin/users/:id', checkAdmin, (req, res) => {
+    const userId = req.params.id;
+    db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        db.run('DELETE FROM transactions WHERE user_id = ?', [userId]);
+        db.run('DELETE FROM forecasts WHERE user_id = ?', [userId]);
+        db.run('DELETE FROM banks WHERE user_id = ?', [userId]);
+        db.run('DELETE FROM categories WHERE user_id = ?', [userId]);
+        db.run('DELETE FROM ofx_imports WHERE user_id = ?', [userId]);
+        db.run('DELETE FROM keyword_rules WHERE user_id = ?', [userId]);
+        db.run('DELETE FROM users WHERE id = ?', [userId], function(err) {
+            if (err) {
+                db.run('ROLLBACK');
+                return res.status(500).json({ error: err.message });
+            }
+            db.run('COMMIT');
+            res.json({ message: 'User and all data deleted' });
+        });
+    });
+});
+
+// 3. Get Global Data Stats
+app.get('/api/admin/global-data', checkAdmin, (req, res) => {
+    const queries = {
+        users: 'SELECT COUNT(*) as count FROM users',
+        transactions: 'SELECT COUNT(*) as count, SUM(value) as totalValue FROM transactions',
+        forecasts: 'SELECT COUNT(*) as count FROM forecasts',
+        imports: 'SELECT COUNT(*) as count FROM ofx_imports'
+    };
+
+    const results = {};
+    let completed = 0;
+    const total = Object.keys(queries).length;
+
+    Object.keys(queries).forEach(key => {
+        db.get(queries[key], [], (err, row) => {
+            if (err) return res.status(500).json({error: err.message});
+            results[key] = row;
+            completed++;
+            if (completed === total) res.json(results);
+        });
+    });
+});
+
+// 4. Get Global Transactions (For Audit)
+app.get('/api/admin/audit-transactions', checkAdmin, (req, res) => {
+    const sql = `
+        SELECT t.id, t.date, t.description, t.value, t.type, u.razao_social 
+        FROM transactions t
+        JOIN users u ON t.user_id = u.id
+        ORDER BY t.date DESC
+        LIMIT 500
+    `;
+    db.all(sql, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+
+// --- AUTH ROUTES ---
+
+app.post('/api/login', (req, res) => {
+  const { email, password } = req.body;
+
+  // 1. Check for Admin Login via ENV
+  if (email === process.env.MAIL_ADMIN && password === process.env.PASSWORD_ADMIN) {
+      return res.json({ 
+          id: 'admin', 
+          email: process.env.MAIL_ADMIN, 
+          razaoSocial: 'Administrador Global',
+          role: 'admin'
+      });
+  }
+
+  // 2. Normal User Login
+  db.get(`SELECT * FROM users WHERE email = ? AND password = ?`, [email, password], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(401).json({ error: 'Credenciais inválidas.' });
+    res.json({ id: row.id, email: row.email, razaoSocial: row.razao_social, role: 'user' });
+  });
+});
+
 app.post('/api/request-signup', (req, res) => {
     const { email, cnpj, razaoSocial, phone } = req.body;
     
@@ -303,28 +408,21 @@ app.post('/api/request-signup', (req, res) => {
     });
 });
 
-// 2. COMPLETE SIGNUP (With Token + Password)
 app.post('/api/complete-signup', (req, res) => {
   const { token, password } = req.body;
 
-  // Validate Token
   db.get('SELECT * FROM pending_signups WHERE token = ?', [token], (err, pendingUser) => {
       if (err) return res.status(500).json({ error: err.message });
       if (!pendingUser) return res.status(400).json({ error: "Token inválido ou expirado." });
 
-      // Create User
       db.run(
         `INSERT INTO users (email, password, cnpj, razao_social, phone) VALUES (?, ?, ?, ?, ?)`,
         [pendingUser.email, password, pendingUser.cnpj, pendingUser.razao_social, pendingUser.phone],
         async function(err) {
           if (err) return res.status(500).json({ error: err.message });
-          
           const newUserId = this.lastID;
-
-          // Remove Pending
           db.run('DELETE FROM pending_signups WHERE email = ?', [pendingUser.email]);
 
-          // Seed Initial Data
           const bankStmt = db.prepare("INSERT INTO banks (user_id, name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, ?, ?, ?)");
           INITIAL_BANKS_SEED.forEach(b => {
               bankStmt.run(newUserId, b.name, b.accountNumber, b.nickname, b.logo, b.active, b.balance);
@@ -343,16 +441,6 @@ app.post('/api/complete-signup', (req, res) => {
   });
 });
 
-app.post('/api/login', (req, res) => {
-  const { email, password } = req.body;
-  db.get(`SELECT * FROM users WHERE email = ? AND password = ?`, [email, password], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!row) return res.status(401).json({ error: 'Credenciais inválidas.' });
-    res.json({ id: row.id, email: row.email, razaoSocial: row.razao_social });
-  });
-});
-
-// 3. RECOVER PASSWORD
 app.post('/api/recover-password', (req, res) => {
     const { email } = req.body;
     db.get(`SELECT * FROM users WHERE email = ?`, [email], async (err, row) => {
@@ -361,7 +449,7 @@ app.post('/api/recover-password', (req, res) => {
         }
         
         const token = crypto.randomBytes(20).toString('hex');
-        const expires = Date.now() + 3600000; // 1 hour
+        const expires = Date.now() + 3600000;
 
         db.run('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?', [token, expires, row.id], async (err) => {
             if (err) return res.status(500).json({error: err.message});
@@ -374,14 +462,11 @@ app.post('/api/recover-password', (req, res) => {
             <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
                 <h1 style="color: #10b981; margin: 0 0 20px 0;">Recuperação de Senha</h1>
                 <p style="color: #334155; font-size: 16px; margin-bottom: 30px;">
-                    Recebemos uma solicitação para redefinir a senha da sua conta na Virgula Contábil.
+                    Recebemos uma solicitação para redefinir a senha.
                 </p>
                 <a href="${link}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
                     Redefinir Minha Senha
                 </a>
-                <p style="color: #94a3b8; font-size: 12px; margin-top: 30px;">
-                    O link expira em 1 hora. Se o botão não funcionar, copie: ${link}
-                </p>
             </div>
             </div>
             `;
@@ -392,7 +477,6 @@ app.post('/api/recover-password', (req, res) => {
     });
 });
 
-// 4. CONFIRM PASSWORD RESET (New Endpoint)
 app.post('/api/reset-password-confirm', (req, res) => {
     const { token, newPassword } = req.body;
     
@@ -415,7 +499,6 @@ app.post('/api/reset-password-confirm', (req, res) => {
     );
 });
 
-// GET TOKEN INFO
 app.get('/api/validate-signup-token/:token', (req, res) => {
     db.get('SELECT email, razao_social FROM pending_signups WHERE token = ?', [req.params.token], (err, row) => {
         if (err || !row) return res.status(404).json({ valid: false });
@@ -423,16 +506,7 @@ app.get('/api/validate-signup-token/:token', (req, res) => {
     });
 });
 
-
-// GENERIC MIDDLEWARE
-const checkAuth = (req, res, next) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
-    req.userId = userId;
-    next();
-};
-
-// BANKS
+// GENERIC USER MIDDLEWARE (Doesn't affect admin routes defined above)
 app.get('/api/banks', checkAuth, (req, res) => {
     db.all(`SELECT * FROM banks WHERE user_id = ?`, [req.userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -479,7 +553,6 @@ app.delete('/api/banks/:id', checkAuth, (req, res) => {
     });
 });
 
-// CATEGORIES
 app.get('/api/categories', checkAuth, (req, res) => {
     db.all(`SELECT * FROM categories WHERE user_id = ?`, [req.userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -506,7 +579,6 @@ app.delete('/api/categories/:id', checkAuth, (req, res) => {
     });
 });
 
-// KEYWORD RULES (NEW)
 app.get('/api/keyword-rules', checkAuth, (req, res) => {
     db.all(`SELECT * FROM keyword_rules WHERE user_id = ?`, [req.userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -538,8 +610,6 @@ app.delete('/api/keyword-rules/:id', checkAuth, (req, res) => {
     });
 });
 
-
-// TRANSACTIONS
 app.get('/api/transactions', checkAuth, (req, res) => {
   db.all(`SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC`, [req.userId], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -572,21 +642,14 @@ app.post('/api/transactions', checkAuth, (req, res) => {
 
 app.put('/api/transactions/:id', checkAuth, (req, res) => {
   const { date, description, value, type, categoryId, bankId, reconciled } = req.body;
-  
-  // If reconciled is provided, update it, otherwise keep existing logic (or assume app logic handles it)
-  // The user asked to reconcile on edit. So we update the reconciled status if passed.
-  // Standard PUT usually replaces resource.
   let query = `UPDATE transactions SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ?`;
   const params = [date, description, value, type, categoryId, bankId];
-  
   if (reconciled !== undefined) {
       query += `, reconciled = ?`;
       params.push(reconciled ? 1 : 0);
   }
-
   query += ` WHERE id = ? AND user_id = ?`;
   params.push(req.params.id, req.userId);
-
   db.run(query, params, function(err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true });
@@ -610,22 +673,19 @@ app.patch('/api/transactions/:id/reconcile', checkAuth, (req, res) => {
 });
 
 app.patch('/api/transactions/batch-update', checkAuth, (req, res) => {
-    const { transactionIds, categoryId } = req.body; // array of ids
+    const { transactionIds, categoryId } = req.body;
     if (!transactionIds || !Array.isArray(transactionIds) || transactionIds.length === 0) {
         return res.status(400).json({ error: "Invalid transaction IDs" });
     }
-
     const placeholders = transactionIds.map(() => '?').join(',');
     const sql = `UPDATE transactions SET category_id = ?, reconciled = 1 WHERE id IN (${placeholders}) AND user_id = ?`;
     const params = [categoryId, ...transactionIds, req.userId];
-
     db.run(sql, params, function(err) {
         if(err) return res.status(500).json({ error: err.message });
         res.json({ updated: this.changes });
     });
 });
 
-// OFX IMPORTS
 app.get('/api/ofx-imports', checkAuth, (req, res) => {
     db.all(`SELECT * FROM ofx_imports WHERE user_id = ? ORDER BY import_date DESC`, [req.userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -668,7 +728,6 @@ app.delete('/api/ofx-imports/:id', checkAuth, (req, res) => {
     });
 });
 
-// FORECASTS
 app.get('/api/forecasts', checkAuth, (req, res) => {
     db.all(`SELECT * FROM forecasts WHERE user_id = ? ORDER BY date ASC`, [req.userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -753,16 +812,15 @@ app.patch('/api/forecasts/:id/realize', checkAuth, (req, res) => {
     });
 });
 
-// --- ADVANCED REPORTS ENDPOINTS (Ported from Python) ---
-
+// Reporting routes follow...
 app.get('/api/reports/cash-flow', checkAuth, async (req, res) => {
+    // ... existing report logic ...
     const { year, month } = req.query;
     const y = parseInt(year);
     const m = month ? parseInt(month) : null;
     const userId = req.userId;
 
     try {
-        // 1. Calculate Period
         let startDate, endDate;
         if (m !== null) {
             startDate = new Date(y, m, 1).toISOString().split('T')[0];
@@ -772,8 +830,6 @@ app.get('/api/reports/cash-flow', checkAuth, async (req, res) => {
             endDate = new Date(y + 1, 0, 1).toISOString().split('T')[0];
         }
 
-        // 2. Calculate Initial Balance (Sum of all tx before start date)
-        // Since we don't have a SaldoInicial table, we sum everything up to startDate
         const balancePromise = new Promise((resolve, reject) => {
             db.get(
                 `SELECT SUM(CASE WHEN type = 'credito' THEN value ELSE -value END) as balance 
@@ -788,7 +844,6 @@ app.get('/api/reports/cash-flow', checkAuth, async (req, res) => {
 
         const startBalance = await balancePromise;
 
-        // 3. Get Transactions in Period
         db.all(
             `SELECT t.*, c.name as category_name, c.type as category_type
              FROM transactions t
@@ -801,7 +856,6 @@ app.get('/api/reports/cash-flow', checkAuth, async (req, res) => {
                 const totalReceitas = rows.filter(r => r.type === 'credito').reduce((sum, r) => sum + r.value, 0);
                 const totalDespesas = rows.filter(r => r.type === 'debito').reduce((sum, r) => sum + r.value, 0);
                 
-                // Group by Category
                 const receitasCat = {};
                 const despesasCat = {};
 
@@ -831,6 +885,7 @@ app.get('/api/reports/cash-flow', checkAuth, async (req, res) => {
 });
 
 app.get('/api/reports/dre', checkAuth, (req, res) => {
+    // ... existing report logic ...
     const { year, month } = req.query;
     const userId = req.userId;
     const y = parseInt(year);
@@ -859,16 +914,14 @@ app.get('/api/reports/dre', checkAuth, (req, res) => {
             resultadoFinanceiro: 0,
             receitaNaoOperacional: 0,
             despesaNaoOperacional: 0,
-            impostos: 0 // Provision (IR/CSLL) - usually calculated or explicit
+            impostos: 0 
         };
 
-        // Categorization Map based on user spec
         rows.forEach(t => {
             const cat = (t.category_name || '').toLowerCase();
             const val = t.value;
             const isCredit = t.type === 'credito';
             
-            // EXCLUSIONS (Do not count towards DRE)
             if (cat.includes('transferências internas') || 
                 cat.includes('aportes de sócios') || 
                 cat.includes('distribuição de lucros') ||
@@ -876,7 +929,6 @@ app.get('/api/reports/dre', checkAuth, (req, res) => {
                 return;
             }
 
-            // 1. Receita Bruta
             if (cat.includes('vendas de mercadorias') || 
                 cat.includes('prestação de serviços') || 
                 cat.includes('comissões recebidas') ||
@@ -884,10 +936,6 @@ app.get('/api/reports/dre', checkAuth, (req, res) => {
                 cat.includes('outras receitas operacionais')) {
                  if (isCredit) dre.receitaBruta += val;
             }
-            
-            // 2. Deduções (Impostos sobre Venda + Devoluções)
-            // Note: 'impostos e taxas' is ambiguous, but user put ICMS/ISS here. 
-            // Default seed 'Impostos e Taxas (ISS...)' matches here.
             else if (cat.includes('impostos e taxas') || 
                      cat.includes('impostos sobre vendas') ||
                      cat.includes('icms') || cat.includes('iss') || cat.includes('das') ||
@@ -895,18 +943,12 @@ app.get('/api/reports/dre', checkAuth, (req, res) => {
                      cat.includes('descontos concedidos')) {
                  if (!isCredit) dre.deducoes += val;
             }
-
-            // 4. Custos (CMV)
             else if (cat.includes('compra de mercadorias') || 
                      cat.includes('matéria-prima') || 
                      cat.includes('fretes e transportes') || 
                      cat.includes('custos diretos')) {
                  if (!isCredit) dre.cmv += val;
             }
-
-            // 8. Resultado Financeiro
-            // Receitas (+): Receita Financeira, Devoluções de Despesas, Reembolsos
-            // Despesas (-): Despesas Financeiras
             else if (cat.includes('receita financeira') || 
                      cat.includes('devoluções de despesas') || 
                      cat.includes('reembolsos de clientes')) {
@@ -918,8 +960,6 @@ app.get('/api/reports/dre', checkAuth, (req, res) => {
                      cat.includes('iof')) {
                  if (!isCredit) dre.resultadoFinanceiro -= val;
             }
-
-            // 9. Resultado Não Operacional
             else if (cat.includes('receitas não operacionais') || 
                      cat.includes('venda de ativo')) {
                  if (isCredit) dre.receitaNaoOperacional += val;
@@ -928,22 +968,14 @@ app.get('/api/reports/dre', checkAuth, (req, res) => {
                      cat.includes('baixa de bens')) {
                  if (!isCredit) dre.despesaNaoOperacional += val;
             }
-
-            // 11. Provisão Impostos (IR/CSLL)
             else if (cat.includes('irpj') || cat.includes('csll')) {
                  if (!isCredit) dre.impostos += val;
             }
-
-            // 6. Despesas Operacionais (Everything else that is an expense)
-            // Admin, Pessoal, Comercial, Terceiros, Tarifas Bancarias (Op), Energia...
             else if (!isCredit) {
-                // If it fell through here and is an expense, it's likely OpEx
-                // E.g. 'tarifas bancárias', 'energia', 'pessoal', 'aluguel'
                 dre.despesasOperacionais += val;
             }
         });
 
-        // Calculated Fields
         const receitaLiquida = dre.receitaBruta - dre.deducoes;
         const resultadoBruto = receitaLiquida - dre.cmv;
         const resultadoOperacional = resultadoBruto - dre.despesasOperacionais;
@@ -969,6 +1001,7 @@ app.get('/api/reports/dre', checkAuth, (req, res) => {
 });
 
 app.get('/api/reports/analysis', checkAuth, (req, res) => {
+    // ... existing report logic ...
     const { year, month } = req.query;
     const userId = req.userId;
     const y = parseInt(year);
