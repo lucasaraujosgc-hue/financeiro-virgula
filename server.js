@@ -1352,7 +1352,7 @@ app.get('/api/reports/forecasts', checkAuth, (req, res) => {
 
     let query = `SELECT f.*, c.name as category_name 
                  FROM forecasts f
-                 LEFT JOIN categories c ON f.category_id = c.id
+                 LEFT JOIN categories c ON f.category_id = c.id 
                  WHERE f.user_id = ? AND strftime('%Y', f.date) = ?`;
     
     const params = [userId, String(y)];
@@ -1408,6 +1408,5 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`DB Path: ${dbPath}`);
-  console.log(`Logos served from: ${LOGO_DIR}`);
+  console.log(`Logos served from: ${LOCAL_LOGO_DIR}`);
 });
