@@ -436,6 +436,9 @@ function App() {
       return <AdminPanel onLogout={handleLogout} />;
   }
 
+  // Active banks only for most components
+  const activeBanks = banks.filter(b => b.active);
+
   // USER VIEW
   const renderContent = () => {
     switch (activeTab) {
@@ -444,7 +447,7 @@ function App() {
           <Dashboard 
             userId={user.id}
             transactions={transactions} 
-            banks={banks.filter(b => b.active)} 
+            banks={activeBanks} 
             forecasts={forecasts}
             categories={categories}
             onRefresh={fetchInitialData}
@@ -455,7 +458,7 @@ function App() {
           <Transactions 
             userId={user.id}
             transactions={transactions} 
-            banks={banks.filter(b => b.active)}
+            banks={activeBanks}
             categories={categories}
             onAddTransaction={handleAddTransaction}
             onEditTransaction={handleEditTransaction}
@@ -468,7 +471,7 @@ function App() {
         return (
             <OFXImports 
                 userId={user.id} 
-                banks={banks.filter(b => b.active)} 
+                banks={activeBanks} 
                 keywordRules={keywordRules}
                 transactions={transactions} // Passando transactions para verificação de duplicidade
                 onTransactionsImported={fetchTransactions} 
@@ -486,7 +489,7 @@ function App() {
       case 'banks':
         return (
             <BankList 
-                banks={banks} 
+                banks={banks} // Pass all banks here (Active & Inactive)
                 onUpdateBank={handleUpdateBank} 
                 onAddBank={handleAddBank}
                 onDeleteBank={handleDeleteBank}
@@ -503,11 +506,11 @@ function App() {
       case 'reports':
         return <Reports transactions={transactions} categories={categories} />;
       case 'forecasts':
-        return <Forecasts userId={user.id} banks={banks.filter(b => b.active)} categories={categories} />;
+        return <Forecasts userId={user.id} banks={activeBanks} categories={categories} />;
       case 'tutorial':
         return <Tutorial />;
       default:
-        return <Dashboard userId={user.id} transactions={transactions} banks={banks} forecasts={forecasts} categories={categories} onRefresh={fetchInitialData} />;
+        return <Dashboard userId={user.id} transactions={transactions} banks={activeBanks} forecasts={forecasts} categories={categories} onRefresh={fetchInitialData} />;
     }
   };
 

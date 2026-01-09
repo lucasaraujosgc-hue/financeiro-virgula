@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bank } from '../types';
-import { Plus, Power, Edit2, X, Trash2 } from 'lucide-react';
+import { Plus, Power, Edit2, X, Trash2, Archive } from 'lucide-react';
 
 interface BankListProps {
   banks: Bank[];
@@ -15,7 +15,7 @@ const BankList: React.FC<BankListProps> = ({ banks, onUpdateBank, onAddBank, onD
   const [selectedPreset, setSelectedPreset] = useState<{name: string, logo: string} | null>(null);
   const [newBankData, setNewBankData] = useState({ nickname: '', accountNumber: '' });
   
-  // Dynamic list of available banks fetched from APIok
+  // Dynamic list of available banks fetched from API
   const [availablePresets, setAvailablePresets] = useState<{id: number, name: string, logo: string}[]>([]);
 
   useEffect(() => {
@@ -34,8 +34,6 @@ const BankList: React.FC<BankListProps> = ({ banks, onUpdateBank, onAddBank, onD
           console.error("Failed to fetch global banks", e);
       }
   };
-
-  const activeBanks = banks.filter(b => b.active);
 
   const handleSaveBank = (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,26 +81,39 @@ const BankList: React.FC<BankListProps> = ({ banks, onUpdateBank, onAddBank, onD
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {activeBanks.length === 0 ? (
+        {banks.length === 0 ? (
             <div className="col-span-full py-10 text-center bg-surface rounded-xl border border-slate-800 border-dashed">
                 <p className="text-slate-400">Nenhuma conta bancária ativa.</p>
                 <p className="text-sm text-slate-500">Clique em "Nova Conta" para adicionar.</p>
             </div>
         ) : (
-            activeBanks.map((bank) => (
-            <div key={bank.id} className="group bg-surface rounded-xl p-6 border border-slate-800 shadow-sm hover:border-slate-700 transition-all duration-200">
+            banks.map((bank) => (
+            <div 
+                key={bank.id} 
+                className={`group bg-surface rounded-xl p-6 border shadow-sm transition-all duration-200 ${
+                    bank.active 
+                    ? 'border-slate-800 hover:border-slate-700' 
+                    : 'border-slate-800/50 opacity-60 hover:opacity-100'
+                }`}
+            >
                 <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-white p-2 border border-slate-700 flex items-center justify-center overflow-hidden">
+                    <div className={`w-12 h-12 rounded-lg bg-white p-2 border flex items-center justify-center overflow-hidden ${bank.active ? 'border-slate-700' : 'border-slate-300 grayscale'}`}>
                         <img src={bank.logo} alt={bank.name} className="max-w-full max-h-full object-contain" onError={(e) => {
                         (e.target as HTMLImageElement).src = 'https://via.placeholder.com/40';
                         }}/>
                     </div>
                     <div>
-                    <h3 className="font-bold text-slate-200">{bank.name}</h3>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                        Ativo
-                    </span>
+                    <h3 className={`font-bold ${bank.active ? 'text-slate-200' : 'text-slate-400'}`}>{bank.name}</h3>
+                    {bank.active ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                            Ativo
+                        </span>
+                    ) : (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 border border-slate-600 flex items-center gap-1 w-fit">
+                            <Archive size={10} /> Arquivado
+                        </span>
+                    )}
                     </div>
                 </div>
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
@@ -134,7 +145,7 @@ const BankList: React.FC<BankListProps> = ({ banks, onUpdateBank, onAddBank, onD
 
                 <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
                     <span className="text-sm text-slate-500">Saldo Atual</span>
-                    <span className={`font-bold text-lg ${bank.balance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    <span className={`font-bold text-lg ${bank.balance >= 0 ? (bank.active ? 'text-emerald-500' : 'text-slate-400') : 'text-rose-500'}`}>
                         R$ {bank.balance.toFixed(2)}
                     </span>
                 </div>
@@ -270,16 +281,21 @@ const BankList: React.FC<BankListProps> = ({ banks, onUpdateBank, onAddBank, onD
                  <button
                     type="button"
                     onClick={() => setEditingBank({...editingBank, active: !editingBank.active})}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                    className={`w-full flex items-center justify-center gap-2 px-3 py-3 rounded-lg text-sm font-medium transition-colors border ${
                         editingBank.active 
-                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' 
-                        : 'bg-rose-500/10 text-rose-500 border-rose-500/30'
+                        ? 'bg-rose-500/10 text-rose-500 border-rose-500/30 hover:bg-rose-500/20' 
+                        : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20'
                     }`}
                  >
                     <Power size={16} />
-                    {editingBank.active ? 'Conta Ativa' : 'Conta Arquivada'}
+                    {editingBank.active ? 'Arquivar Conta' : 'Reativar Conta'}
                  </button>
               </div>
+              {!editingBank.active && (
+                  <p className="text-xs text-slate-500 text-center">
+                      Contas arquivadas não aparecem nas opções de lançamento, mas seu histórico é mantido.
+                  </p>
+              )}
 
               <div className="pt-4 flex gap-3">
                 <button 
