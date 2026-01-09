@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, Category } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ComposedChart, Line } from 'recharts';
-import { ChevronLeft, ChevronRight, Filter, Download, CalendarRange, Percent, Activity, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Download, CalendarRange, Percent, Activity, TrendingUp, Info } from 'lucide-react';
 
 interface ReportsProps {
   transactions: Transaction[];
@@ -11,15 +11,61 @@ interface ReportsProps {
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
+const BENCHMARK_DATA = {
+    MC: [
+        { sector: 'Comércio varejista', range: '30% a 50%' },
+        { sector: 'Supermercados', range: '15% a 25%' },
+        { sector: 'Indústria', range: '35% a 55%' },
+        { sector: 'Prestação de serviços', range: '50% a 70%' },
+        { sector: 'Tecnologia / SaaS', range: '70% a 85%' },
+        { sector: 'Restaurantes', range: '40% a 60%' },
+        { sector: 'Construção civil', range: '25% a 40%' }
+    ],
+    RO: [
+        { sector: 'Comércio varejista', range: '5% a 12%' },
+        { sector: 'Supermercados', range: '2% a 6%' },
+        { sector: 'Indústria', range: '8% a 15%' },
+        { sector: 'Prestação de serviços', range: '15% a 30%' },
+        { sector: 'Tecnologia / SaaS', range: '20% a 40%' },
+        { sector: 'Restaurantes', range: '5% a 15%' },
+        { sector: 'Construção civil', range: '8% a 20%' }
+    ],
+    RL: [
+        { sector: 'Comércio varejista', range: '3% a 8%' },
+        { sector: 'Supermercados', range: '1% a 4%' },
+        { sector: 'Indústria', range: '5% a 10%' },
+        { sector: 'Prestação de serviços', range: '10% a 25%' },
+        { sector: 'Tecnologia / SaaS', range: '15% a 35%' },
+        { sector: 'Restaurantes', range: '3% a 10%' },
+        { sector: 'Construção civil', range: '5% a 15%' }
+    ]
+};
+
+const READINGS = {
+    MC: [
+        { status: 'Baixo', desc: 'Preço baixo ou custo variável alto' },
+        { status: 'Ideal', desc: 'Dentro da faixa saudável' },
+        { status: 'Alto', desc: 'Atenção a preço fora de mercado' }
+    ],
+    RO: [
+        { status: 'Baixo', desc: 'Despesas fixas descontroladas' },
+        { status: 'Negativo', desc: 'Modelo de negócio em risco' }
+    ],
+    RL: [
+        { status: 'Baixo', desc: 'Impacto financeiro ou tributário' },
+        { status: 'Alto', desc: 'Pode indicar subtributação ou erro' }
+    ]
+};
+
 const Reports: React.FC<ReportsProps> = () => {
   const [activeTab, setActiveTab] = useState<'cashflow' | 'dre' | 'analysis'>('cashflow');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
+  const [cycleData, setCycleData] = useState<any[]>([]);
 
   // States for Daily Flow Chart (Cash Cycle)
-  const [cycleData, setCycleData] = useState<any[]>([]);
   const [cycleStartDate, setCycleStartDate] = useState(() => {
       const date = new Date();
       date.setDate(1); // First day of current month
@@ -29,6 +75,23 @@ const Reports: React.FC<ReportsProps> = () => {
       const date = new Date();
       return date.toISOString().split('T')[0];
   });
+
+  // Sync Cycle Dates with Selected Month
+  useEffect(() => {
+      const start = new Date(year, month, 1);
+      // Last day of month: day 0 of next month
+      const end = new Date(year, month + 1, 0);
+      
+      // Fix Timezone Offset for input type=date
+      const formatDate = (d: Date) => {
+          const offset = d.getTimezoneOffset();
+          const correctedDate = new Date(d.getTime() - (offset * 60 * 1000));
+          return correctedDate.toISOString().split('T')[0];
+      };
+
+      setCycleStartDate(formatDate(start));
+      setCycleEndDate(formatDate(end));
+  }, [year, month]);
 
   // Helper to fetch data based on active tab
   const fetchData = async () => {
@@ -279,9 +342,9 @@ const Reports: React.FC<ReportsProps> = () => {
       // Validate correct data shape for Analysis
       if (!data || !data.receitas) return null;
 
-      // KPI Helper
-      const KPI = ({ title, value, icon, tooltip }: any) => (
-          <div className="bg-surface p-4 rounded-xl border border-slate-800 shadow-sm flex flex-col justify-between h-full">
+      // KPI Helper with Enhanced Tooltip
+      const KPI = ({ title, value, icon, type }: { title: string, value: number, icon: any, type: 'MC' | 'RO' | 'RL' }) => (
+          <div className="bg-surface p-4 rounded-xl border border-slate-800 shadow-sm flex flex-col justify-between h-full relative group">
               <div className="flex justify-between items-start mb-2">
                   <div className="p-1.5 bg-slate-800 rounded-lg text-primary border border-slate-700">
                       {icon}
@@ -290,9 +353,30 @@ const Reports: React.FC<ReportsProps> = () => {
                       {value.toFixed(2)}%
                   </span>
               </div>
-              <div>
+              <div className="flex items-center gap-2">
                   <h4 className="text-slate-200 font-semibold text-sm">{title}</h4>
-                  <p className="text-slate-500 text-xs mt-1">{tooltip}</p>
+                  <Info size={14} className="text-slate-500 cursor-help" />
+              </div>
+
+              {/* Enhanced Tooltip */}
+              <div className="absolute top-full left-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 z-50 hidden group-hover:block animate-in fade-in zoom-in duration-150">
+                  <h5 className="font-bold text-white text-xs mb-2 border-b border-slate-800 pb-1">Referências por Setor (%)</h5>
+                  <ul className="space-y-1 mb-3">
+                      {BENCHMARK_DATA[type].map((item, idx) => (
+                          <li key={idx} className="flex justify-between text-[10px] text-slate-300">
+                              <span>{item.sector}</span>
+                              <span className="font-mono text-emerald-400">{item.range}</span>
+                          </li>
+                      ))}
+                  </ul>
+                  <h5 className="font-bold text-white text-xs mb-2 border-b border-slate-800 pb-1">Leitura Prática</h5>
+                  <ul className="space-y-1">
+                      {READINGS[type].map((item, idx) => (
+                          <li key={idx} className="text-[10px] text-slate-400">
+                              <span className="text-primary font-bold">{item.status}:</span> {item.desc}
+                          </li>
+                      ))}
+                  </ul>
               </div>
           </div>
       );
@@ -307,19 +391,19 @@ const Reports: React.FC<ReportsProps> = () => {
                         title="Margem de Contribuição" 
                         value={data.kpis.margemContribuicaoPct} 
                         icon={<Percent size={18}/>}
-                        tooltip="Quanto sobra da receita para pagar custos fixos e gerar lucro."
+                        type="MC"
                       />
                       <KPI 
                         title="Resultado Operacional" 
                         value={data.kpis.resultadoOperacionalPct} 
                         icon={<Activity size={18}/>}
-                        tooltip="Proporção de lucro operacional sobre a receita líquida."
+                        type="RO"
                       />
                       <KPI 
                         title="Resultado Líquido" 
                         value={data.kpis.resultadoLiquidoPct} 
                         icon={<TrendingUp size={18}/>}
-                        tooltip="Lucro líquido final como porcentagem da receita bruta."
+                        type="RL"
                       />
                   </div>
               )}

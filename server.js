@@ -119,7 +119,13 @@ const sendEmail = async (to, subject, htmlContent) => {
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Increased limit for OFX files
+
+// Servir arquivos estáticos do frontend (dist)
 app.use(express.static(path.join(__dirname, 'dist')));
+
+// Servir a pasta de logos separadamente para garantir acesso
+// Assume que a pasta 'logo' está na raiz do projeto (mesmo nível do server.js)
+app.use('/logo', express.static(path.join(__dirname, 'logo')));
 
 // Middleware para validar userId e Admin
 const getUserId = (req) => {
