@@ -832,7 +832,7 @@ app.post('/api/transactions', checkAuth, (req, res) => {
   const { date, description, value, type, categoryId, bankId, reconciled, ofxImportId } = req.body;
   db.run(
     `INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, reconciled, ofx_import_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [req.userId, date, description, value, type, category_id, bankId, reconciled ? 1 : 0, ofxImportId || null],
+    [req.userId, date, description, value, type, categoryId, bankId, reconciled ? 1 : 0, ofxImportId || null],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ id: this.lastID, ...req.body });
@@ -843,7 +843,7 @@ app.post('/api/transactions', checkAuth, (req, res) => {
 app.put('/api/transactions/:id', checkAuth, (req, res) => {
   const { date, description, value, type, categoryId, bankId, reconciled } = req.body;
   let query = `UPDATE transactions SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ?`;
-  const params = [date, description, value, type, category_id, bankId];
+  const params = [date, description, value, type, categoryId, bankId];
   if (reconciled !== undefined) {
       query += `, reconciled = ?`;
       params.push(reconciled ? 1 : 0);
@@ -952,7 +952,7 @@ app.post('/api/forecasts', checkAuth, (req, res) => {
     db.run(
         `INSERT INTO forecasts (user_id, date, description, value, type, category_id, bank_id, realized, installment_current, installment_total, group_id) 
          VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-        [req.userId, date, description, value, type, category_id, bankId, installmentCurrent, installmentTotal, groupId],
+        [req.userId, date, description, value, type, categoryId, bankId, installmentCurrent, installmentTotal, groupId],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ id: this.lastID });
@@ -964,7 +964,7 @@ app.put('/api/forecasts/:id', checkAuth, (req, res) => {
     const { date, description, value, type, categoryId, bankId } = req.body;
     db.run(
         `UPDATE forecasts SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ? WHERE id = ? AND user_id = ?`,
-        [date, description, value, type, category_id, bankId, req.params.id, req.userId],
+        [date, description, value, type, categoryId, bankId, req.params.id, req.userId],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ success: true });

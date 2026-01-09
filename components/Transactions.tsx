@@ -90,8 +90,15 @@ const Transactions: React.FC<TransactionsProps> = ({
   };
 
   const filteredTransactions = transactions.filter(t => {
+    if (!t.date) return false;
+    
     // Ajuste para pegar UTC ou local date corretamente ao dividir a string YYYY-MM-DD
-    const [y, m] = t.date.split('-');
+    const parts = t.date.split('-');
+    if (parts.length < 2) return false;
+
+    const y = parts[0];
+    const m = parts[1];
+
     const yearMatch = parseInt(y) === selectedYear;
     const monthMatch = (parseInt(m) - 1) === selectedMonth;
     const bankMatch = selectedBankId === 'all' || t.bankId === selectedBankId;
