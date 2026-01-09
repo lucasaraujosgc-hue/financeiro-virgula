@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, LayoutDashboard, FileText, Trash2, LogOut, ShieldAlert, BarChart, Eye, X, Download, Calendar, Receipt, ArrowUpRight, FileSpreadsheet, Landmark, Plus, Upload } from 'lucide-react';
+import { Users, LayoutDashboard, FileText, Trash2, LogOut, ShieldAlert, BarChart, Eye, X, Download, Calendar, Receipt, ArrowUpRight, FileSpreadsheet, Landmark, Plus, Upload, Edit2 } from 'lucide-react';
 
 interface AdminPanelProps {
   onLogout: () => void;
@@ -13,7 +13,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   const [adminBanks, setAdminBanks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // User Detail View Stateok
+  // User Detail View State
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [userDetails, setUserDetails] = useState<any>(null);
   const [detailTab, setDetailTab] = useState<'transactions' | 'forecasts' | 'files'>('transactions');
@@ -23,6 +23,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   // Bank Form State
   const [newBankName, setNewBankName] = useState('');
   const [newBankLogo, setNewBankLogo] = useState<string | null>(null);
+  const [editingBankId, setEditingBankId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getHeaders = () => ({
@@ -125,29 +126,44 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
       }
   };
 
-  const handleCreateBank = async (e: React.FormEvent) => {
+  const handleSaveBank = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!newBankName) return alert("Nome do banco é obrigatório");
 
+      const url = editingBankId ? `/api/admin/banks/${editingBankId}` : '/api/admin/banks';
+      const method = editingBankId ? 'PUT' : 'POST';
+
       try {
-          const res = await fetch('/api/admin/banks', {
-              method: 'POST',
+          const res = await fetch(url, {
+              method: method,
               headers: getHeaders(),
               body: JSON.stringify({ name: newBankName, logoData: newBankLogo })
           });
           
           if (res.ok) {
-              setNewBankName('');
-              setNewBankLogo(null);
-              if (fileInputRef.current) fileInputRef.current.value = '';
+              handleCancelEdit();
               fetchAdminBanks();
-              alert("Banco cadastrado com sucesso!");
+              alert(editingBankId ? "Banco atualizado com sucesso!" : "Banco cadastrado com sucesso!");
           } else {
-              alert("Erro ao cadastrar banco");
+              alert("Erro ao salvar banco");
           }
       } catch (err) {
           console.error(err);
       }
+  };
+
+  const handleEditBankClick = (bank: any) => {
+      setEditingBankId(bank.id);
+      setNewBankName(bank.name);
+      setNewBankLogo(bank.logo);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleCancelEdit = () => {
+      setEditingBankId(null);
+      setNewBankName('');
+      setNewBankLogo(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleDeleteBank = async (id: number) => {
@@ -255,8 +271,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
 
                   {/* Add Bank Form */}
                   <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                      <h3 className="font-semibold text-white mb-4 flex items-center gap-2"><Plus size={18}/> Novo Banco</h3>
-                      <form onSubmit={handleCreateBank} className="flex gap-4 items-end">
+                      <div className="flex justify-between items-center mb-4">
+                          <h3 className="font-semibold text-white flex items-center gap-2">
+                              {editingBankId ? <Edit2 size={18} /> : <Plus size={18} />} 
+                              {editingBankId ? 'Editar Banco' : 'Novo Banco'}
+                          </h3>
+                          {editingBankId && (
+                              <button onClick={handleCancelEdit} className="text-xs text-slate-400 hover:text-white underline">
+                                  Cancelar Edição
+                              </button>
+                          )}
+                      </div>
+                      <form onSubmit={handleSaveBank} className="flex gap-4 items-end">
                           <div className="flex-1">
                               <label className="block text-xs font-bold text-slate-500 mb-1">Nome da Instituição</label>
                               <input 
@@ -290,7 +316,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                               </div>
                           )}
                           <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg font-bold">
-                              Cadastrar
+                              {editingBankId ? 'Salvar Alterações' : 'Cadastrar'}
                           </button>
                       </form>
                   </div>
@@ -310,7 +336,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                                           </div>
                                       </td>
                                       <td className="px-6 py-3 font-medium text-white">{bank.name}</td>
-                                      <td className="px-6 py-3 text-center">
+                                      <td className="px-6 py-3 text-center flex justify-center gap-2">
+                                          <button onClick={() => handleEditBankClick(bank)} className="p-2 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20"><Edit2 size={18}/></button>
                                           <button onClick={() => handleDeleteBank(bank.id)} className="p-2 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={18}/></button>
                                       </td>
                                   </tr>

@@ -11,7 +11,7 @@ import crypto from 'crypto';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Garante que a pasta logo seja servida como estáticaok
+// Garante que a pasta logo seja servida como estática
 // Isso permite acessar http://localhost:3000/logo/nubank.jpg
 const LOGO_DIR = path.join(__dirname, 'logo');
 
@@ -371,6 +371,45 @@ app.post('/api/admin/banks', checkAdmin, async (req, res) => {
     db.run('INSERT INTO global_banks (name, logo) VALUES (?, ?)', [name, logoPath], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ id: this.lastID, name, logo: logoPath });
+    });
+});
+
+app.put('/api/admin/banks/:id', checkAdmin, (req, res) => {
+    const { name, logoData } = req.body;
+    const { id } = req.params;
+
+    if (!name) return res.status(400).json({ error: "Nome é obrigatório" });
+
+    db.get('SELECT * FROM global_banks WHERE id = ?', [id], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!row) return res.status(404).json({ error: "Banco não encontrado" });
+
+        let logoPath = row.logo;
+
+        if (logoData && logoData.startsWith('data:image')) {
+             try {
+                const matches = logoData.match(/^data:image\/([A-Za-z-+\/]+);base64,(.+)$/);
+                if (matches && matches.length === 3) {
+                    const extension = matches[1].includes('+') ? matches[1].split('+')[0] : matches[1]; 
+                    const base64Data = matches[2];
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    
+                    const fileName = `bank_${Date.now()}.${extension}`;
+                    const filePath = path.join(LOGO_DIR, fileName);
+                    
+                    fs.writeFileSync(filePath, buffer);
+                    logoPath = `/logo/${fileName}`;
+                }
+            } catch (e) {
+                console.error("Error saving logo:", e);
+                return res.status(500).json({ error: "Erro ao salvar imagem" });
+            }
+        }
+
+        db.run('UPDATE global_banks SET name = ?, logo = ? WHERE id = ?', [name, logoPath, id], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ id, name, logo: logoPath });
+        });
     });
 });
 
