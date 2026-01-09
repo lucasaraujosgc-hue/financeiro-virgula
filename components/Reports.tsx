@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, Category } from '../types';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { ChevronLeft, ChevronRight, Filter, Download } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ComposedChart, Line } from 'recharts';
+import { ChevronLeft, ChevronRight, Filter, Download, CalendarRange } from 'lucide-react';
 
 interface ReportsProps {
   transactions: Transaction[];
@@ -17,6 +17,18 @@ const Reports: React.FC<ReportsProps> = () => {
   const [month, setMonth] = useState(new Date().getMonth());
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
+
+  // States for Daily Flow Chart (Cash Cycle)
+  const [cycleData, setCycleData] = useState<any[]>([]);
+  const [cycleStartDate, setCycleStartDate] = useState(() => {
+      const date = new Date();
+      date.setDate(1); // First day of current month
+      return date.toISOString().split('T')[0];
+  });
+  const [cycleEndDate, setCycleEndDate] = useState(() => {
+      const date = new Date();
+      return date.toISOString().split('T')[0];
+  });
 
   // Helper to fetch data based on active tab
   const fetchData = async () => {
@@ -44,16 +56,59 @@ const Reports: React.FC<ReportsProps> = () => {
       }
   };
 
+  const fetchCycleData = async () => {
+      const userId = localStorage.getItem('finance_app_auth') ? JSON.parse(localStorage.getItem('finance_app_auth')!).id : null;
+      if (!userId) return;
+
+      try {
+          const res = await fetch(`/api/reports/daily-flow?startDate=${cycleStartDate}&endDate=${cycleEndDate}`, {
+              headers: { 'user-id': String(userId) }
+          });
+          if (res.ok) {
+              setCycleData(await res.json());
+          }
+      } catch (error) {
+          console.error("Failed to fetch daily flow", error);
+      }
+  };
+
+  // Initial Fetch & On Change
   useEffect(() => {
       fetchData();
   }, [activeTab, year, month]);
 
+  // Fetch Cycle Data when tab is cashflow or dates change
+  useEffect(() => {
+      if (activeTab === 'cashflow') {
+          fetchCycleData();
+      }
+  }, [activeTab, cycleStartDate, cycleEndDate]);
+
+  // Fixed Navigation Logic
+  const handlePrevMonth = () => {
+      if (month === 0) {
+          setMonth(11);
+          setYear(prev => prev - 1);
+      } else {
+          setMonth(prev => prev - 1);
+      }
+  };
+
+  const handleNextMonth = () => {
+      if (month === 11) {
+          setMonth(0);
+          setYear(prev => prev + 1);
+      } else {
+          setMonth(prev => prev + 1);
+      }
+  };
+
   const renderCashFlow = () => {
-      // Validate correct data shape for Cashflow
+      // Validate correct data shape for Cashflow summary
       if (!data || typeof data.totalReceitas === 'undefined') return null;
       
       return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* Cards Summary */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="bg-surface p-4 rounded-xl border border-slate-800">
@@ -76,6 +131,56 @@ const Reports: React.FC<ReportsProps> = () => {
                   </div>
               </div>
 
+              {/* Cash Cycle Chart (Evolution) */}
+              <div className="bg-surface p-6 rounded-xl border border-slate-800">
+                  <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                      <div>
+                          <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                              <CalendarRange className="text-primary" size={20}/> Evolução Diária do Caixa
+                          </h3>
+                          <p className="text-slate-400 text-sm">Entradas e saídas de dinheiro por data específica</p>
+                      </div>
+                      <div className="flex items-center gap-2 bg-slate-900 p-2 rounded-lg border border-slate-700">
+                          <input 
+                            type="date" 
+                            className="bg-transparent text-white text-sm outline-none border-b border-slate-600 focus:border-primary pb-1"
+                            value={cycleStartDate}
+                            onChange={(e) => setCycleStartDate(e.target.value)}
+                          />
+                          <span className="text-slate-500 text-xs">até</span>
+                          <input 
+                            type="date" 
+                            className="bg-transparent text-white text-sm outline-none border-b border-slate-600 focus:border-primary pb-1"
+                            value={cycleEndDate}
+                            onChange={(e) => setCycleEndDate(e.target.value)}
+                          />
+                      </div>
+                  </div>
+                  
+                  <div className="h-80 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart data={cycleData}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                              <XAxis 
+                                dataKey="date" 
+                                tickFormatter={(str) => str ? str.split('-').slice(1).join('/') : ''}
+                                tick={{fill: '#94a3b8', fontSize: 12}}
+                              />
+                              <YAxis hide />
+                              <Tooltip 
+                                  contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px'}}
+                                  labelFormatter={(label) => new Date(label).toLocaleDateString('pt-BR')}
+                              />
+                              <Legend />
+                              <Bar dataKey="income" name="Receita" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
+                              <Bar dataKey="expense" name="Despesa" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
+                              <Line type="monotone" dataKey="net" name="Resultado Líquido" stroke="#3b82f6" strokeWidth={2} dot={{r: 4}} />
+                          </ComposedChart>
+                      </ResponsiveContainer>
+                  </div>
+              </div>
+
+              {/* Pies */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Income Chart */}
                   <div className="bg-surface p-6 rounded-xl border border-slate-800">
@@ -225,18 +330,12 @@ const Reports: React.FC<ReportsProps> = () => {
         
         {/* Date Filters */}
         <div className="flex items-center gap-2 bg-surface p-1 rounded-lg border border-slate-800">
-            <button onClick={() => setMonth(m => m === 0 ? 11 : m - 1)} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
+            <button onClick={handlePrevMonth} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
             <div className="px-4 text-center min-w-[140px]">
                 <span className="block text-xs text-slate-500 font-bold">MÊS DE REFERÊNCIA</span>
                 <span className="block text-sm font-bold text-white">{MONTHS[month]} / {year}</span>
             </div>
-            <button onClick={() => setMonth(m => m === 11 ? 0 : m + 1)} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={16}/></button>
-            
-            <div className="h-8 w-px bg-slate-800 mx-2"></div>
-            
-            <button onClick={() => setYear(y => y - 1)} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
-            <span className="font-bold text-white px-2">{year}</span>
-            <button onClick={() => setYear(y => y + 1)} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={16}/></button>
+            <button onClick={handleNextMonth} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={16}/></button>
         </div>
       </div>
 

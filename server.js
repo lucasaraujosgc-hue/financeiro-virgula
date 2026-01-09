@@ -118,7 +118,7 @@ const sendEmail = async (to, subject, htmlContent) => {
 };
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased limit for OFX files
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // Middleware para validar userId e Admin
@@ -223,8 +223,14 @@ db.serialize(() => {
     import_date TEXT,
     bank_id INTEGER,
     transaction_count INTEGER,
+    content TEXT,
     FOREIGN KEY(user_id) REFERENCES users(id)
-  )`);
+  )`, (err) => {
+      if (!err) {
+          // Migration to add content column if missing
+          db.run("ALTER TABLE ofx_imports ADD COLUMN content TEXT", () => {});
+      }
+  });
 
   // Transactions
   db.run(`CREATE TABLE IF NOT EXISTS transactions (
@@ -279,7 +285,58 @@ app.get('/api/admin/users', checkAdmin, (req, res) => {
     });
 });
 
-// 2. Delete User & All Data
+// 2. Get Single User Full Data (For Admin Dashboard)
+app.get('/api/admin/users/:id/full-data', checkAdmin, async (req, res) => {
+    const userId = req.params.id;
+    try {
+        const transactions = await new Promise((resolve, reject) => {
+            db.all(`SELECT t.*, c.name as category_name, b.name as bank_name 
+                    FROM transactions t 
+                    LEFT JOIN categories c ON t.category_id = c.id 
+                    LEFT JOIN banks b ON t.bank_id = b.id
+                    WHERE t.user_id = ? ORDER BY t.date DESC`, [userId], (err, rows) => {
+                if (err) reject(err); else resolve(rows);
+            });
+        });
+
+        const forecasts = await new Promise((resolve, reject) => {
+            db.all(`SELECT f.*, c.name as category_name, b.name as bank_name 
+                    FROM forecasts f
+                    LEFT JOIN categories c ON f.category_id = c.id
+                    LEFT JOIN banks b ON f.bank_id = b.id
+                    WHERE f.user_id = ? ORDER BY f.date ASC`, [userId], (err, rows) => {
+                if (err) reject(err); else resolve(rows);
+            });
+        });
+
+        const ofxImports = await new Promise((resolve, reject) => {
+            db.all(`SELECT o.id, o.file_name, o.import_date, o.transaction_count, b.name as bank_name 
+                    FROM ofx_imports o
+                    LEFT JOIN banks b ON o.bank_id = b.id
+                    WHERE o.user_id = ? ORDER BY o.import_date DESC`, [userId], (err, rows) => {
+                if (err) reject(err); else resolve(rows);
+            });
+        });
+
+        res.json({ transactions, forecasts, ofxImports });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 3. Download OFX Content
+app.get('/api/admin/ofx-download/:id', checkAdmin, (req, res) => {
+    db.get('SELECT file_name, content FROM ofx_imports WHERE id = ?', [req.params.id], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!row || !row.content) return res.status(404).json({ error: "Arquivo não encontrado ou sem conteúdo" });
+        
+        res.setHeader('Content-Disposition', `attachment; filename="${row.file_name}"`);
+        res.setHeader('Content-Type', 'application/x-ofx');
+        res.send(row.content);
+    });
+});
+
+// 4. Delete User & All Data
 app.delete('/api/admin/users/:id', checkAdmin, (req, res) => {
     const userId = req.params.id;
     db.serialize(() => {
@@ -301,7 +358,7 @@ app.delete('/api/admin/users/:id', checkAdmin, (req, res) => {
     });
 });
 
-// 3. Get Global Data Stats
+// 5. Get Global Data Stats
 app.get('/api/admin/global-data', checkAdmin, (req, res) => {
     const queries = {
         users: 'SELECT COUNT(*) as count FROM users',
@@ -324,7 +381,7 @@ app.get('/api/admin/global-data', checkAdmin, (req, res) => {
     });
 });
 
-// 4. Get Global Transactions (For Audit)
+// 6. Get Global Transactions (For Audit)
 app.get('/api/admin/audit-transactions', checkAdmin, (req, res) => {
     const sql = `
         SELECT t.id, t.date, t.description, t.value, t.type, u.razao_social 
@@ -700,10 +757,10 @@ app.get('/api/ofx-imports', checkAuth, (req, res) => {
 });
 
 app.post('/api/ofx-imports', checkAuth, (req, res) => {
-    const { fileName, importDate, bankId, transactionCount } = req.body;
+    const { fileName, importDate, bankId, transactionCount, content } = req.body;
     db.run(
-        `INSERT INTO ofx_imports (user_id, file_name, import_date, bank_id, transaction_count) VALUES (?, ?, ?, ?, ?)`,
-        [req.userId, fileName, importDate, bankId, transactionCount],
+        `INSERT INTO ofx_imports (user_id, file_name, import_date, bank_id, transaction_count, content) VALUES (?, ?, ?, ?, ?, ?)`,
+        [req.userId, fileName, importDate, bankId, transactionCount, content || ''],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ id: this.lastID });
@@ -882,6 +939,40 @@ app.get('/api/reports/cash-flow', checkAuth, async (req, res) => {
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
+});
+
+// NEW ENDPOINT: DAILY FLOW FOR CHART
+app.get('/api/reports/daily-flow', checkAuth, (req, res) => {
+    const { startDate, endDate } = req.query;
+    const userId = req.userId;
+
+    if (!startDate || !endDate) return res.status(400).json({ error: 'Start and End date required' });
+
+    db.all(
+        `SELECT date, type, SUM(value) as total 
+         FROM transactions 
+         WHERE user_id = ? AND date BETWEEN ? AND ? 
+         GROUP BY date, type 
+         ORDER BY date ASC`,
+        [userId, startDate, endDate],
+        (err, rows) => {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            // Format for chart: [{ date: '...', income: 100, expense: 50, net: 50 }, ...]
+            const grouped = {};
+            rows.forEach(row => {
+                if (!grouped[row.date]) grouped[row.date] = { date: row.date, income: 0, expense: 0, net: 0 };
+                if (row.type === 'credito') grouped[row.date].income += row.total;
+                else grouped[row.date].expense += row.total;
+                grouped[row.date].net = grouped[row.date].income - grouped[row.date].expense;
+            });
+
+            // Fill missing days? Optional, but keeping it sparse for now is easier. 
+            // Recharts handles gaps well if XAxis type is category or simply strings.
+            
+            res.json(Object.values(grouped));
+        }
+    );
 });
 
 app.get('/api/reports/dre', checkAuth, (req, res) => {

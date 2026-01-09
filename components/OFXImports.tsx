@@ -31,6 +31,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
   const [cleanTransactions, setCleanTransactions] = useState<any[]>([]);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [currentFileName, setCurrentFileName] = useState('');
+  const [fileContent, setFileContent] = useState(''); // Store content to save
 
   const getHeaders = () => ({
       'Content-Type': 'application/json',
@@ -64,6 +65,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
     reader.onload = async (e) => {
       const content = e.target?.result as string;
       if (!content) return;
+      setFileContent(content);
 
       const transactionsRaw = content.split('<STMTTRN>');
       const start = importConfig.startDate ? new Date(importConfig.startDate) : null;
@@ -201,7 +203,8 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
                       fileName: currentFileName,
                       importDate: new Date().toISOString(),
                       bankId: Number(importConfig.bankId),
-                      transactionCount: finalTransactionsToAdd.length
+                      transactionCount: finalTransactionsToAdd.length,
+                      content: fileContent // Send Raw Content
                   })
               });
               const importData = await resImport.json();
@@ -232,6 +235,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
           if (fileInputRef.current) fileInputRef.current.value = '';
           setConflicts([]);
           setCleanTransactions([]);
+          setFileContent('');
 
       } catch (err) {
           alert("Erro ao salvar dados.");

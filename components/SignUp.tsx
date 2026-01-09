@@ -8,47 +8,163 @@ interface SignUpProps {
 
 const TERMS_CONTENT = `
 1. ACEITAÇÃO DOS TERMOS
-Ao acessar, cadastrar-se ou utilizar o Sistema de Conciliação Financeira (doravante "Sistema"), você (doravante "Usuário") concorda em cumprir e estar vinculado a estes Termos e Condições de Uso ("Termos"). Se você não concordar com estes Termos, não utilize o Sistema.
 
-O Sistema é fornecido por VIRGULA CONTABIL LTDA, CNPJ nº 52.613.515/0001-60, com o objetivo de auxiliar na gestão e conciliação de informações financeiras, facilitando a prestação dos serviços de contabilidade.
+Ao acessar, cadastrar-se ou utilizar o Sistema de Conciliação Financeira (“Sistema”), o usuário (“Usuário”) declara ter lido, compreendido e concordado integralmente com estes Termos e Condições de Uso (“Termos”).
+
+Caso o Usuário não concorde com quaisquer disposições aqui previstas, deverá abster-se de utilizar o Sistema.
+
+O Sistema é disponibilizado por VIRGULA CONTABIL LTDA, pessoa jurídica de direito privado, inscrita no CNPJ nº 52.613.515/0001-60, doravante denominada simplesmente “VIRGULA CONTABIL”.
 
 2. DESCRIÇÃO DO SERVIÇO
-O Sistema é uma plataforma online desenvolvida para a organização e conciliação de dados financeiros. Os principais serviços incluem:
-- Registro e categorização de lançamentos financeiros.
-- Importação de extratos bancários (OFX, PDF ou outros formatos suportados).
-- Geração de relatórios financeiros (ex: fluxo de caixa, DRE simplificado).
-- Gerenciamento de previsões de lançamentos recorrentes.
+
+O Sistema consiste em uma plataforma digital destinada ao gerenciamento, organização e conciliação de informações financeiras, com finalidade de apoio à gestão e à prestação de serviços contábeis.
+
+Dentre suas funcionalidades, incluem-se, sem limitação:
+
+Registro e categorização de lançamentos financeiros;
+
+Importação de extratos bancários (OFX, PDF ou outros formatos suportados);
+
+Geração de relatórios financeiros, como fluxo de caixa e demonstrativos simplificados;
+
+Controle de lançamentos recorrentes e previsões financeiras.
+
+O Sistema não substitui a atuação profissional do contador, tampouco exime o Usuário de suas obrigações legais, fiscais, trabalhistas ou financeiras.
 
 3. CADASTRO, CONTA E SEGURANÇA
-3.1. Elegibilidade: O Usuário declara ser maior de 18 (dezoito) anos e possuir plena capacidade civil para aceitar e cumprir estes Termos.
-3.2. Informações de Cadastro: O Usuário concorda em fornecer informações verdadeiras, precisas e completas durante o registro e em mantê-las atualizadas.
-3.3. Responsabilidade pela Conta: O Usuário é o único responsável pela segurança de sua senha e por todas as atividades que ocorram em sua conta. Você deve nos notificar imediatamente sobre qualquer uso não autorizado de sua conta.
+3.1. Elegibilidade
 
-4. PROPRIEDADE E ACESSO AOS DADOS (CLÁUSULA CRUCIAL)
-4.1. Propriedade dos Dados: O Usuário retém toda a propriedade e direitos sobre os dados financeiros, informações e arquivos (ex: extratos bancários, lançamentos) que insere ou importa no Sistema ("Dados do Usuário").
-4.2. Concessão de Acesso: O Usuário expressamente reconhece e concorda que, ao utilizar este Sistema, concede total e irrestrito acesso aos seus Dados do Usuário para a VIRGULA CONTABIL LTDA.
-4.3. Finalidade do Acesso: O acesso aos Dados do Usuário pela VIRGULA CONTABIL LTDA é exclusivo para a prestação e otimização dos serviços de contabilidade contratados e/ou para a manutenção e melhoria do próprio Sistema.
-4.4. Confidencialidade: A VIRGULA CONTABIL LTDA compromete-se a tratar os Dados do Usuário com a mais estrita confidencialidade, aplicando medidas técnicas e administrativas razoáveis para proteger as informações contra acesso, uso, alteração ou divulgação não autorizados.
+O Usuário declara ser maior de 18 (dezoito) anos e possuir plena capacidade civil para celebrar este contrato.
 
-5. RESPONSABILIDADES DO USUÁRIO
-5.1. Veracidade dos Dados: O Usuário é o único responsável pela precisão, integridade e legalidade dos Dados do Usuário inseridos no Sistema. O Sistema de Conciliação Financeira é uma ferramenta de suporte e não substitui a responsabilidade do Usuário por suas obrigações fiscais e financeiras.
-5.2. Licitude: O Usuário concorda em utilizar o Sistema apenas para fins lícitos.
+3.2. Informações de Cadastro
 
-6. EXCLUSÃO DE GARANTIAS E LIMITAÇÃO DE RESPONSABILIDADE
-6.1. Precisão dos Dados: O Sistema utiliza os dados fornecidos pelo Usuário. Não garantimos que os relatórios gerados ou as conciliações sejam isentos de erros decorrentes de dados incorretos ou incompletos inseridos pelo Usuário.
-6.2. Limitação de Responsabilidade: A VIRGULA CONTABIL LTDA não será responsável por quaisquer danos diretos, indiretos, incidentais, especiais ou consequenciais (incluindo, mas não se limitando a, perda de lucros, dados ou outras perdas intangíveis) resultantes do uso ou da incapacidade de usar o Sistema.
+O Usuário compromete-se a fornecer informações verdadeiras, completas e atualizadas, sendo exclusivamente responsável por quaisquer prejuízos decorrentes de dados incorretos ou desatualizados.
 
-7. PROPRIEDADE INTELECTUAL
-O código, design, estrutura e todas as funcionalidades do Sistema são de propriedade exclusiva da VIRGULA CONTABIL LTDA e estão protegidos por leis de direitos autorais e propriedade intelectual.
+3.3. Criação de Senha e Acesso
 
-8. RESCISÃO
-8.1. Pelo Usuário: O Usuário pode solicitar o cancelamento de sua conta a qualquer momento, o que pode resultar na exclusão ou anonimização de seus Dados do Usuário, salvo aqueles que somos legalmente obrigados a manter.
-8.2. Pela VIRGULA CONTABIL LTDA: Reservamo-nos o direito de suspender ou rescindir o acesso do Usuário ao Sistema, a qualquer momento e sem aviso prévio, em caso de violação destes Termos.
+O acesso ao Sistema será realizado por meio de credenciais pessoais e intransferíveis. O cadastro de senha poderá ocorrer mediante link enviado ao e-mail informado, de uso único e com prazo de validade.
 
-9. DISPOSIÇÕES GERAIS
-9.1. Lei Aplicável e Foro: Estes Termos são regidos pelas leis da República Federativa do Brasil. As partes elegem o foro da Comarca de São Gonçalo dos Campos, BAHIA para dirimir quaisquer dúvidas ou litígios decorrentes destes Termos, com renúncia a qualquer outro, por mais privilegiado que seja.
-9.2. Alterações: Reservamo-nos o direito de modificar estes Termos a qualquer momento. Quaisquer alterações entrarão em vigor após a publicação da versão atualizada no Sistema. O uso continuado do Sistema após a publicação constitui aceitação de tais alterações.
-`;
+3.4. Responsabilidade pela Conta
+
+O Usuário é o único responsável:
+
+pela confidencialidade de suas credenciais;
+
+por todas as atividades realizadas em sua conta;
+
+por comunicar imediatamente a VIRGULA CONTABIL em caso de suspeita de uso indevido ou acesso não autorizado.
+
+4. DADOS DO USUÁRIO, PROPRIEDADE E TRATAMENTO
+4.1. Propriedade dos Dados
+
+Todos os dados, documentos e informações inseridos ou importados no Sistema (“Dados do Usuário”) permanecem de exclusiva propriedade do Usuário.
+
+4.2. Acesso aos Dados
+
+O Usuário autoriza a VIRGULA CONTABIL a acessar, armazenar, processar e tratar os Dados do Usuário estritamente na medida necessária para:
+
+execução dos serviços contratados;
+
+manutenção e funcionamento do Sistema;
+
+melhoria contínua das funcionalidades;
+
+cumprimento de obrigações legais e regulatórias.
+
+4.3. Base Legal
+
+O tratamento dos Dados do Usuário ocorre com fundamento, principalmente, na execução de contrato e no legítimo interesse, nos termos da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados – LGPD).
+
+4.4. Confidencialidade
+
+A VIRGULA CONTABIL compromete-se a manter os Dados do Usuário sob sigilo, não os divulgando a terceiros, salvo:
+
+mediante autorização do Usuário;
+
+por obrigação legal ou ordem judicial;
+
+para parceiros estritamente necessários à operação do Sistema, observados contratos de confidencialidade.
+
+5. SEGURANÇA DA INFORMAÇÃO
+
+A VIRGULA CONTABIL adota medidas técnicas e administrativas razoáveis e compatíveis com os padrões de mercado, visando proteger os Dados do Usuário contra acessos não autorizados, destruição, perda, alteração ou divulgação indevida.
+
+Tais medidas incluem, sempre que aplicável:
+
+criptografia de dados em trânsito e em repouso;
+
+controle de acesso lógico;
+
+autenticação segura;
+
+monitoramento e registro de acessos;
+
+políticas internas de segurança da informação.
+
+O Usuário reconhece que nenhum sistema é absolutamente seguro, não sendo possível garantir a eliminação total de riscos.
+
+6. INCIDENTES DE SEGURANÇA
+
+Na hipótese de ocorrência de incidente de segurança que possa acarretar risco ou dano relevante ao Usuário, a VIRGULA CONTABIL:
+
+adotará medidas para contenção e mitigação do incidente;
+
+comunicará o Usuário e, quando aplicável, a Autoridade Nacional de Proteção de Dados (ANPD), nos termos da legislação vigente.
+
+7. RESPONSABILIDADES DO USUÁRIO
+
+O Usuário declara e concorda que:
+
+é responsável pela veracidade, legalidade e integridade dos Dados do Usuário;
+
+o Sistema é ferramenta de apoio, não substituindo controles próprios;
+
+é vedada a utilização do Sistema para fins ilícitos, fraudulentos ou contrários à legislação vigente.
+
+8. EXCLUSÃO DE GARANTIAS E LIMITAÇÃO DE RESPONSABILIDADE
+8.1. Funcionamento do Sistema
+
+O Sistema é disponibilizado “no estado em que se encontra”, podendo sofrer interrupções, manutenções ou indisponibilidades temporárias.
+
+8.2. Limitação de Responsabilidade
+
+Na máxima extensão permitida pela lei, a VIRGULA CONTABIL não será responsável por:
+
+danos decorrentes de uso indevido do Sistema;
+
+falhas originadas de informações incorretas fornecidas pelo Usuário;
+
+lucros cessantes, perdas financeiras indiretas ou danos morais decorrentes do uso do Sistema.
+
+Nada nestes Termos exclui ou limita responsabilidades que não possam ser legalmente afastadas.
+
+9. PROPRIEDADE INTELECTUAL
+
+Todo o conteúdo, código-fonte, layout, marcas, funcionalidades e estrutura do Sistema são de propriedade exclusiva da VIRGULA CONTABIL, sendo vedada sua reprodução, modificação ou exploração sem autorização expressa.
+
+10. RESCISÃO
+10.1. Pelo Usuário
+
+O Usuário poderá solicitar o cancelamento de sua conta a qualquer momento.
+
+10.2. Pela VIRGULA CONTABIL
+
+A VIRGULA CONTABIL poderá suspender ou encerrar o acesso ao Sistema em caso de violação destes Termos ou da legislação aplicável.
+
+Após o encerramento, os Dados do Usuário poderão ser excluídos ou anonimizados, salvo quando houver obrigação legal de retenção.
+
+11. DISPOSIÇÕES GERAIS
+11.1. Alterações
+
+A VIRGULA CONTABIL poderá alterar estes Termos a qualquer momento, mediante publicação da versão atualizada no Sistema.
+
+11.2. Lei Aplicável e Foro
+
+Estes Termos são regidos pelas leis da República Federativa do Brasil, ficando eleito o foro da Comarca de São Gonçalo dos Campos – BA, com renúncia a qualquer outro, por mais privilegiado que seja.
+
+12. CONTATO
+
+Para dúvidas, solicitações ou exercício de direitos relacionados a dados pessoais, o Usuário poderá entrar em contato pelo e-mail: [contato@virgulacontabil.com.br].`;
 
 const maskCnpjCpf = (value: string) => {
   const v = value.replace(/\D/g, '');
