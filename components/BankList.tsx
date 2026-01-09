@@ -15,7 +15,7 @@ const BankList: React.FC<BankListProps> = ({ banks, onUpdateBank, onAddBank, onD
   const [selectedPreset, setSelectedPreset] = useState<{name: string, logo: string} | null>(null);
   const [newBankData, setNewBankData] = useState({ nickname: '', accountNumber: '' });
   
-  // Dynamic list of available banks fetched from API
+  // Dynamic list of available banks fetched from APIok
   const [availablePresets, setAvailablePresets] = useState<{id: number, name: string, logo: string}[]>([]);
 
   useEffect(() => {

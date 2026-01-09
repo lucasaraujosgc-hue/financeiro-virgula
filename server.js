@@ -11,7 +11,7 @@ import crypto from 'crypto';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Garante que a pasta logo seja servida como estática
+// Garante que a pasta logo seja servida como estáticaok
 // Isso permite acessar http://localhost:3000/logo/nubank.jpg
 const LOGO_DIR = path.join(__dirname, 'logo');
 

@@ -13,7 +13,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   const [adminBanks, setAdminBanks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // User Detail View State
+  // User Detail View Stateok
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [userDetails, setUserDetails] = useState<any>(null);
   const [detailTab, setDetailTab] = useState<'transactions' | 'forecasts' | 'files'>('transactions');
