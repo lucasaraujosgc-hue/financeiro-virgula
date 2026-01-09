@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, TransactionType, Bank, Category, CategoryType } from '../types';
-import { Search, Plus, Trash2, Check, X, ChevronLeft, ChevronRight, Edit2, CheckSquare, Square, ListChecks, Save } from 'lucide-react';
+import { Search, Plus, Trash2, Check, X, ChevronLeft, ChevronRight, Edit2, CheckSquare, Square, ListChecks, Save, CalendarSearch } from 'lucide-react';
 
 interface TransactionsProps {
   userId: number;
@@ -90,7 +90,7 @@ const Transactions: React.FC<TransactionsProps> = ({
   };
 
   const filteredTransactions = transactions.filter(t => {
-    const d = new Date(t.date);
+    // Ajuste para pegar UTC ou local date corretamente ao dividir a string YYYY-MM-DD
     const [y, m] = t.date.split('-');
     const yearMatch = parseInt(y) === selectedYear;
     const monthMatch = (parseInt(m) - 1) === selectedMonth;
@@ -260,7 +260,7 @@ const Transactions: React.FC<TransactionsProps> = ({
            )}
       </div>
 
-       {/* Month Navigation & Summary (Visible only in normal mode or kept in background) */}
+       {/* Month Navigation & Summary */}
        {!isBatchMode && (
         <div className="bg-surface rounded-xl border border-slate-800 shadow-sm overflow-hidden">
             <div className="flex flex-col lg:flex-row">
@@ -380,7 +380,11 @@ const Transactions: React.FC<TransactionsProps> = ({
               {filteredTransactions.length === 0 ? (
                   <tr>
                       <td colSpan={isBatchMode ? 8 : 7} className="px-6 py-12 text-center text-slate-500">
-                          Nenhum lançamento encontrado neste período
+                          <div className="flex flex-col items-center justify-center gap-2">
+                              <CalendarSearch size={32} className="opacity-50"/>
+                              <p>Nenhum lançamento encontrado neste período.</p>
+                              <p className="text-xs text-slate-600">Verifique se você importou o OFX para o mês/ano selecionado no topo.</p>
+                          </div>
                       </td>
                   </tr>
               ) : (

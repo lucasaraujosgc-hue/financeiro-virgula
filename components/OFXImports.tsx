@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bank, OFXImport, Transaction, TransactionType, KeywordRule } from '../types';
-import { FileUp, Trash2, Calendar, Database, FileSpreadsheet, AlertTriangle, ArrowRight, Save, X } from 'lucide-react';
+import { FileUp, Trash2, Calendar, Database, FileSpreadsheet, AlertTriangle, ArrowRight, Save, X, Loader2 } from 'lucide-react';
 
 interface OFXImportsProps {
   userId: number;
@@ -31,7 +31,12 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
   const [cleanTransactions, setCleanTransactions] = useState<any[]>([]);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [currentFileName, setCurrentFileName] = useState('');
-  const [fileContent, setFileContent] = useState(''); // Store content to save
+  const [fileContent, setFileContent] = useState(''); 
+  
+  // Progress State
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [processingStatus, setProcessingStatus] = useState('');
 
   const getHeaders = () => ({
       'Content-Type': 'application/json',
@@ -61,138 +66,154 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
 
   const processOFXFile = (file: File) => {
     setCurrentFileName(file.name);
+    setIsProcessing(true);
+    setProcessingStatus('Lendo arquivo...');
+    setProgress(10);
+
     const reader = new FileReader();
     reader.onload = async (e) => {
       const content = e.target?.result as string;
-      if (!content) return;
-      setFileContent(content);
-
-      const transactionsRaw = content.split('<STMTTRN>');
-      const start = importConfig.startDate ? new Date(importConfig.startDate) : null;
-      const end = importConfig.endDate ? new Date(importConfig.endDate) : null;
-
-      const parsedTransactions: any[] = [];
-      let ignored = 0;
-
-      transactionsRaw.forEach(block => {
-        const dateMatch = block.match(/<DTPOSTED>(\d{8})/);
-        const amountMatch = block.match(/<TRNAMT>([\d.-]+)/);
-        const memoMatch = block.match(/<MEMO>(.*?)[\r\n<]/);
-
-        if (dateMatch && amountMatch && memoMatch) {
-            const dateStr = dateMatch[1]; 
-            const formattedDate = `${dateStr.substring(0,4)}-${dateStr.substring(4,6)}-${dateStr.substring(6,8)}`;
-            const txDate = new Date(formattedDate);
-            
-            // Date Filter
-            if (start && txDate < start) { ignored++; return; }
-            if (end && txDate > end) { ignored++; return; }
-
-            const rawValue = parseFloat(amountMatch[1]);
-            const type = rawValue < 0 ? TransactionType.DEBIT : TransactionType.CREDIT;
-            const description = memoMatch[1].trim();
-
-            // KEYWORD RULE MATCHING
-            let matchedCategoryId = 0;
-            for (const rule of keywordRules) {
-                if (rule.type === type) {
-                    if (description.toLowerCase().includes(rule.keyword.toLowerCase())) {
-                        matchedCategoryId = rule.categoryId;
-                        break;
-                    }
-                }
-            }
-            
-            parsedTransactions.push({
-                date: formattedDate,
-                description: description,
-                value: Math.abs(rawValue),
-                type: type,
-                bankId: Number(importConfig.bankId),
-                categoryId: matchedCategoryId,
-                reconciled: matchedCategoryId > 0
-            });
-        }
-      });
-
-      if (parsedTransactions.length === 0) {
-          alert("Nenhum lançamento encontrado no período.");
+      if (!content) {
+          setIsProcessing(false);
           return;
       }
+      setFileContent(content);
+      setProgress(30);
+      setProcessingStatus('Analisando lançamentos...');
 
-      // DUPLICATE CHECKING LOGIC
-      // Filter existing transactions for this bank
-      const existingBankTransactions = transactions.filter(t => t.bankId === Number(importConfig.bankId));
-      
-      const newConflicts: ConflictingTransaction[] = [];
-      const newClean: any[] = [];
+      // Pequeno delay para a UI atualizar
+      setTimeout(() => {
+          const transactionsRaw = content.split('<STMTTRN>');
+          const start = importConfig.startDate ? new Date(importConfig.startDate) : null;
+          const end = importConfig.endDate ? new Date(importConfig.endDate) : null;
 
-      // We use a copy to splice out matches so 2 identical new txs match 2 identical old txs correctly one-by-one
-      const availableExisting = [...existingBankTransactions];
+          const parsedTransactions: any[] = [];
+          let ignored = 0;
 
-      parsedTransactions.forEach((newTx, idx) => {
-          // Find match in available existing
-          const matchIndex = availableExisting.findIndex(ex => 
-              ex.date === newTx.date && 
-              Math.abs(ex.value) === Math.abs(newTx.value) &&
-              ex.type === newTx.type
-          );
+          transactionsRaw.forEach(block => {
+            const dateMatch = block.match(/<DTPOSTED>(\d{8})/);
+            const amountMatch = block.match(/<TRNAMT>([\d.-]+)/);
+            const memoMatch = block.match(/<MEMO>(.*?)[\r\n<]/);
 
-          if (matchIndex > -1) {
-              // Found a conflict
-              newConflicts.push({
-                  id: `conflict-${idx}`,
-                  newTx: newTx,
-                  oldTx: availableExisting[matchIndex],
-                  action: 'keep_old' // Default action
-              });
-              // Remove from available so it's not matched again
-              availableExisting.splice(matchIndex, 1);
-          } else {
-              // No conflict
-              newClean.push(newTx);
+            if (dateMatch && amountMatch && memoMatch) {
+                const dateStr = dateMatch[1]; 
+                const formattedDate = `${dateStr.substring(0,4)}-${dateStr.substring(4,6)}-${dateStr.substring(6,8)}`;
+                const txDate = new Date(formattedDate);
+                
+                // Date Filter
+                if (start && txDate < start) { ignored++; return; }
+                if (end && txDate > end) { ignored++; return; }
+
+                const rawValue = parseFloat(amountMatch[1]);
+                const type = rawValue < 0 ? TransactionType.DEBIT : TransactionType.CREDIT;
+                const description = memoMatch[1].trim();
+
+                // KEYWORD RULE MATCHING
+                let matchedCategoryId = 0;
+                for (const rule of keywordRules) {
+                    if (rule.type === type) {
+                        if (description.toLowerCase().includes(rule.keyword.toLowerCase())) {
+                            matchedCategoryId = rule.categoryId;
+                            break;
+                        }
+                    }
+                }
+                
+                parsedTransactions.push({
+                    date: formattedDate,
+                    description: description,
+                    value: Math.abs(rawValue),
+                    type: type,
+                    bankId: Number(importConfig.bankId),
+                    categoryId: matchedCategoryId,
+                    reconciled: matchedCategoryId > 0
+                });
+            }
+          });
+
+          setProgress(60);
+
+          if (parsedTransactions.length === 0) {
+              alert("Nenhum lançamento encontrado no período.");
+              setIsProcessing(false);
+              return;
           }
-      });
 
-      setCleanTransactions(newClean);
-      setConflicts(newConflicts);
+          setProcessingStatus('Verificando duplicidades...');
+          
+          // Filter existing transactions for this bank
+          const existingBankTransactions = transactions.filter(t => t.bankId === Number(importConfig.bankId));
+          
+          const newConflicts: ConflictingTransaction[] = [];
+          const newClean: any[] = [];
 
-      if (newConflicts.length > 0) {
-          setShowConflictModal(true);
-      } else {
-          // No conflicts, proceed directly
-          saveImport(newClean, []);
-      }
+          // We use a copy to splice out matches so 2 identical new txs match 2 identical old txs correctly one-by-one
+          const availableExisting = [...existingBankTransactions];
+
+          parsedTransactions.forEach((newTx, idx) => {
+              // Find match in available existing
+              const matchIndex = availableExisting.findIndex(ex => 
+                  ex.date === newTx.date && 
+                  Math.abs(ex.value) === Math.abs(newTx.value) &&
+                  ex.type === newTx.type
+              );
+
+              if (matchIndex > -1) {
+                  // Found a conflict
+                  newConflicts.push({
+                      id: `conflict-${idx}`,
+                      newTx: newTx,
+                      oldTx: availableExisting[matchIndex],
+                      action: 'keep_old' // Default action
+                  });
+                  // Remove from available so it's not matched again
+                  availableExisting.splice(matchIndex, 1);
+              } else {
+                  // No conflict
+                  newClean.push(newTx);
+              }
+          });
+
+          setCleanTransactions(newClean);
+          setConflicts(newConflicts);
+          
+          setIsProcessing(false);
+          setProgress(0);
+
+          if (newConflicts.length > 0) {
+              setShowConflictModal(true);
+          } else {
+              // No conflicts, proceed directly
+              saveImport(newClean, []);
+          }
+      }, 100);
     };
     reader.readAsText(file);
   };
 
   const saveImport = async (cleanTxs: any[], resolvedConflicts: ConflictingTransaction[]) => {
-      // 1. Prepare Final List
-      // Start with clean transactions
+      setIsProcessing(true);
+      setProcessingStatus('Salvando lançamentos...');
+      setProgress(0);
+
       const finalTransactionsToAdd = [...cleanTxs];
       const transactionsToDeleteIds: number[] = [];
 
-      // Process resolved conflicts
       resolvedConflicts.forEach(c => {
           if (c.action === 'replace_with_new') {
-              // Mark old for deletion
               transactionsToDeleteIds.push(c.oldTx.id);
-              // Add new to insertion list
               finalTransactionsToAdd.push(c.newTx);
           }
-          // If 'keep_old', we do nothing (don't add new, don't delete old)
       });
 
       if (finalTransactionsToAdd.length === 0 && transactionsToDeleteIds.length === 0) {
           alert("Nenhuma alteração a ser realizada.");
           setShowConflictModal(false);
+          setIsProcessing(false);
           return;
       }
 
       try {
-          // 1. Create Import Record
-          // We only create an import record if we are actually adding new transactions
           let importId: number | null = null;
           
           if (finalTransactionsToAdd.length > 0) {
@@ -204,33 +225,45 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
                       importDate: new Date().toISOString(),
                       bankId: Number(importConfig.bankId),
                       transactionCount: finalTransactionsToAdd.length,
-                      content: fileContent // Send Raw Content
+                      content: fileContent
                   })
               });
               const importData = await resImport.json();
               importId = importData.id;
           }
 
-          // 2. Delete Replaced Transactions
-          for (const id of transactionsToDeleteIds) {
-              await fetch(`/api/transactions/${id}`, {
-                  method: 'DELETE',
-                  headers: getHeaders()
-              });
+          // Delete Replaced Transactions
+          if (transactionsToDeleteIds.length > 0) {
+              setProcessingStatus('Removendo antigos...');
+              for (const id of transactionsToDeleteIds) {
+                  await fetch(`/api/transactions/${id}`, {
+                      method: 'DELETE',
+                      headers: getHeaders()
+                  });
+              }
           }
 
-          // 3. Insert New Transactions
-          for (const tx of finalTransactionsToAdd) {
+          // Insert New Transactions with Progress Bar
+          const total = finalTransactionsToAdd.length;
+          setProcessingStatus(`Importando ${total} lançamentos...`);
+          
+          // Enviar em lotes para performance melhor, ou um loop com progresso visual
+          for (let i = 0; i < total; i++) {
                 await fetch('/api/transactions', {
                     method: 'POST',
                     headers: getHeaders(),
-                    body: JSON.stringify({ ...tx, ofxImportId: importId })
+                    body: JSON.stringify({ ...finalTransactionsToAdd[i], ofxImportId: importId })
                 });
+                // Update Progress
+                const pct = Math.round(((i + 1) / total) * 100);
+                setProgress(pct);
           }
 
-          alert("Importação concluída com sucesso!");
-          fetchImports();
-          onTransactionsImported();
+          await fetchImports();
+          onTransactionsImported(); // Critical: Refresh Parent State
+          
+          alert("Importação concluída com sucesso! Verifique se a data dos lançamentos corresponde ao filtro de data da tela de Lançamentos.");
+          
           setShowConflictModal(false);
           if (fileInputRef.current) fileInputRef.current.value = '';
           setConflicts([]);
@@ -240,6 +273,9 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
       } catch (err) {
           alert("Erro ao salvar dados.");
           console.error(err);
+      } finally {
+          setIsProcessing(false);
+          setProgress(0);
       }
   };
 
@@ -269,7 +305,24 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 relative">
+      {/* Loading Overlay */}
+      {isProcessing && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+              <div className="bg-surface border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
+                  <div className="relative w-16 h-16 mx-auto mb-4">
+                      <div className="absolute inset-0 border-4 border-slate-700 rounded-full"></div>
+                      <div className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent animate-spin"></div>
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2">{processingStatus}</h3>
+                  <div className="w-full bg-slate-800 rounded-full h-2 mb-2 overflow-hidden">
+                      <div className="bg-primary h-full transition-all duration-300" style={{width: `${progress}%`}}></div>
+                  </div>
+                  <p className="text-slate-400 text-sm font-mono">{progress}% concluído</p>
+              </div>
+          </div>
+      )}
+
       <div>
         <h1 className="text-2xl font-bold text-white">Gerenciador de OFX</h1>
         <p className="text-slate-400">Importe e gerencie seus arquivos bancários</p>
@@ -325,9 +378,10 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
              />
              <button 
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-6 py-3 bg-primary text-slate-900 rounded-lg hover:bg-primaryHover font-medium transition-colors shadow-lg shadow-emerald-900/50"
+                disabled={isProcessing}
+                className="flex items-center gap-2 px-6 py-3 bg-primary text-slate-900 rounded-lg hover:bg-primaryHover font-medium transition-colors shadow-lg shadow-emerald-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
              >
-                <FileSpreadsheet size={20} />
+                {isProcessing ? <Loader2 className="animate-spin" size={20}/> : <FileSpreadsheet size={20} />}
                 Selecionar Arquivo OFX
              </button>
              <p className="text-sm text-slate-500">Selecione o arquivo .ofx fornecido pelo seu banco.</p>

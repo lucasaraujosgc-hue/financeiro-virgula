@@ -11,14 +11,10 @@ import crypto from 'crypto';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Garante que a pasta logo exista e seja servida
-const LOGO_DIR = path.join(__dirname, 'logo');
-try {
-    if (!fs.existsSync(LOGO_DIR)){
-        fs.mkdirSync(LOGO_DIR, { recursive: true });
-    }
-} catch (e) {
-    console.error("Erro ao criar diretório de logos:", e);
+// Garante que a pasta logo local exista
+const LOCAL_LOGO_DIR = path.join(__dirname, 'logo');
+if (!fs.existsSync(LOCAL_LOGO_DIR)){
+    fs.mkdirSync(LOCAL_LOGO_DIR, { recursive: true });
 }
 
 const app = express();
@@ -30,20 +26,80 @@ app.use(express.json({ limit: '10mb' }));
 // Servir arquivos do frontend (build)
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Servir logos da raiz
-app.use('/logo', express.static(LOGO_DIR));
+// --- DATABASE & STORAGE SETUP (ROBUSTO) ---
+const BACKUP_DIR = '/backup';
+let PERSISTENT_LOGO_DIR = path.join(__dirname, 'backup_logos_fallback'); // Fallback local
+
+// 1. Tenta configurar diretório de backup
+try {
+    if (!fs.existsSync(BACKUP_DIR)) {
+        // Tenta criar na raiz (Linux/Docker/Render)
+        try {
+            fs.mkdirSync(BACKUP_DIR, { recursive: true });
+        } catch (e) {
+            // Fallback para pasta local ./backup
+            if (!fs.existsSync('./backup')) {
+                fs.mkdirSync('./backup', { recursive: true });
+            }
+        }
+    }
+} catch (e) {
+    console.error("Aviso: Erro ao configurar diretórios de backup:", e.message);
+}
+
+// 2. Configura diretório de logos persistente
+// Se /backup existe e é gravável, usa /backup/logos
+// Senão, usa ./backup/logos local
+if (fs.existsSync(BACKUP_DIR)) {
+    try {
+        fs.accessSync(BACKUP_DIR, fs.constants.W_OK);
+        PERSISTENT_LOGO_DIR = path.join(BACKUP_DIR, 'logos');
+    } catch (e) {
+        PERSISTENT_LOGO_DIR = './backup/logos';
+    }
+} else {
+    PERSISTENT_LOGO_DIR = './backup/logos';
+}
+
+if (!fs.existsSync(PERSISTENT_LOGO_DIR)) {
+    fs.mkdirSync(PERSISTENT_LOGO_DIR, { recursive: true });
+}
+
+console.log(`Logos persistentes em: ${PERSISTENT_LOGO_DIR}`);
+
+// 3. Define caminho do banco
+let dbPath = './backup/finance_v2.db'; 
+if (fs.existsSync(BACKUP_DIR)) {
+    try {
+        fs.accessSync(BACKUP_DIR, fs.constants.W_OK);
+        dbPath = path.join(BACKUP_DIR, 'finance_v2.db');
+    } catch (e) {}
+}
+
+const db = new sqlite3.Database(dbPath, (err) => {
+    if (err) console.error("ERRO CRÍTICO AO ABRIR BANCO DE DADOS:", err.message);
+    else console.log(`Banco de dados conectado em: ${dbPath}`);
+});
+
+// --- ROTA DE IMAGENS (MIDDLEWARE CUSTOMIZADO) ---
+// Tenta servir do persistent primeiro, depois do local
+app.use('/logo', (req, res, next) => {
+    const urlPath = req.path;
+    const persistentFile = path.join(PERSISTENT_LOGO_DIR, urlPath);
+    
+    if (fs.existsSync(persistentFile)) {
+        return res.sendFile(persistentFile);
+    }
+    next();
+});
+app.use('/logo', express.static(LOCAL_LOGO_DIR));
 
 // Middleware para validar userId e Admin
 const getUserId = (req) => {
-    // 1. Tenta pegar do Header (chamadas API normais)
     let userId = req.headers['user-id'];
-    
-    // 2. Se não tiver no header, tenta na Query String (downloads/window.open)
-    // Suporta tanto 'userId' (padrão camelCase) quanto 'user-id'
     if (!userId) {
         userId = req.query.userId || req.query['user-id'];
     }
-
     return userId ? String(userId).trim() : null;
 };
 
@@ -59,50 +115,6 @@ const checkAdmin = (req, res, next) => {
     if (userId !== 'admin') return res.status(403).json({ error: "Forbidden: Admin access only" });
     next();
 };
-
-// --- DATABASE SETUP (ROBUSTO) ---
-const BACKUP_DIR = '/backup';
-
-// Tenta criar diretório de backup de forma segura
-try {
-    if (!fs.existsSync(BACKUP_DIR)) {
-        // Tenta criar na raiz (Linux/Docker/Render)
-        try {
-            fs.mkdirSync(BACKUP_DIR, { recursive: true });
-        } catch (e) {
-            // Fallback para pasta local ./backup se não tiver permissão na raiz
-            if (!fs.existsSync('./backup')) {
-                fs.mkdirSync('./backup', { recursive: true });
-            }
-        }
-    }
-} catch (e) {
-    console.error("Aviso: Erro ao configurar diretórios de backup:", e.message);
-}
-
-// Define caminho do banco com fallback automático
-let dbPath = './backup/finance_v2.db'; // Default local
-try {
-    // Verifica se consegue escrever no diretório /backup
-    if (fs.existsSync(BACKUP_DIR)) {
-        try {
-            fs.accessSync(BACKUP_DIR, fs.constants.W_OK);
-            dbPath = path.join(BACKUP_DIR, 'finance_v2.db');
-        } catch (e) {
-            console.log("Sem permissão de escrita em /backup, usando ./backup local.");
-        }
-    }
-} catch (e) {
-    console.log("Usando caminho local para banco de dados.");
-}
-
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error("ERRO CRÍTICO AO ABRIR BANCO DE DADOS:", err.message);
-    } else {
-        console.log(`Banco de dados conectado em: ${dbPath}`);
-    }
-});
 
 // Configuração de Email
 const mailPort = Number(process.env.MAIL_PORT) || 587;
@@ -124,10 +136,8 @@ const sendEmail = async (to, subject, htmlContent) => {
       return true;
   }
   try {
-      // Configuração do ALIAS e FROM NAME
       const fromName = process.env.MAIL_FROM_NAME || "Virgula Contábil";
       const fromAddress = process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME;
-      
       const info = await transporter.sendMail({
           from: `"${fromName}" <${fromAddress}>`,
           to: to,
@@ -165,56 +175,28 @@ const INITIAL_BANKS_SEED = [
   { name: 'Caixa Registradora', logo: '/logo/caixaf.png' },
 ];
 
-const RECEITAS_LIST = [
-    'Vendas de Mercadorias',
-    'Prestação de Serviços',
-    'Receita de Aluguel',
-    'Comissões Recebidas',
-    'Receita Financeira (juros, rendimentos, aplicações)',
-    'Devoluções de Despesas',
-    'Reembolsos de Clientes',
-    'Transferências Internas (entre contas)',
-    'Aportes de Sócios / Investimentos',
-    'Outras Receitas Operacionais',
-    'Receitas Não Operacionais (ex: venda de ativo imobilizado)'
-];
-
-const DESPESAS_LIST = [
-    'Compra de Mercadorias / Matéria-Prima',
-    'Fretes e Transportes',
-    'Despesas com Pessoal (salários, pró-labore, encargos)',
-    'Serviços de Terceiros (contabilidade, marketing, consultorias)',
-    'Despesas Administrativas (papelaria, materiais de escritório)',
-    'Despesas Comerciais (comissões, propaganda, brindes)',
-    'Energia Elétrica / Água / Telefone / Internet',
-    'Aluguel e Condomínio',
-    'Manutenção e Limpeza',
-    'Combustível e Deslocamento',
-    'Seguros (veicular, empresarial, de vida, etc.)',
-    'Tarifas Bancárias e Juros',
-    'Impostos e Taxas (ISS, ICMS, DAS, etc.)',
-    'Despesas Financeiras (juros sobre empréstimos, multas, IOF)',
-    'Transferências Internas (entre contas)',
-    'Distribuição de Lucros / Retirada de Sócios',
-    'Outras Despesas Operacionais',
-    'Despesas Não Operacionais (venda de bens, baixas contábeis)'
-];
-
 const INITIAL_CATEGORIES_SEED = [
-    ...RECEITAS_LIST.map(name => ({ name, type: 'receita' })),
-    ...DESPESAS_LIST.map(name => ({ name, type: 'despesa' }))
+    { name: 'Vendas de Mercadorias', type: 'receita' },
+    { name: 'Prestação de Serviços', type: 'receita' },
+    { name: 'Receita de Aluguel', type: 'receita' },
+    { name: 'Comissões Recebidas', type: 'receita' },
+    { name: 'Receita Financeira', type: 'receita' },
+    { name: 'Outras Receitas', type: 'receita' },
+    { name: 'Compra de Mercadorias', type: 'despesa' },
+    { name: 'Despesas com Pessoal', type: 'despesa' },
+    { name: 'Despesas Administrativas', type: 'despesa' },
+    { name: 'Impostos e Taxas', type: 'despesa' },
+    { name: 'Despesas Financeiras', type: 'despesa' },
+    { name: 'Pró-Labore', type: 'despesa' }
 ];
 
-// --- HELPER DE MIGRAÇÃO ---
+// Helper para garantir colunas (Migração)
 const ensureColumn = (table, column, definition) => {
     db.all(`PRAGMA table_info(${table})`, (err, rows) => {
         if (!err && rows) {
             const hasColumn = rows.some(r => r.name === column);
             if (!hasColumn) {
-                db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`, (err) => {
-                    if(!err) console.log(`[MIGRATION] Added column ${column} to ${table}`);
-                    else console.error(`[MIGRATION ERROR] ${table}.${column}:`, err.message);
-                });
+                db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
             }
         }
     });
@@ -222,28 +204,24 @@ const ensureColumn = (table, column, definition) => {
 
 // Initialize Tables & Seed
 db.serialize(() => {
-  // Global Banks (Master List)
+  // 1. Global Banks
   db.run(`CREATE TABLE IF NOT EXISTS global_banks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
     logo TEXT
   )`, (err) => {
       if (!err) {
-          // Check if empty, if so, seed
           db.get("SELECT COUNT(*) as count FROM global_banks", [], (err, row) => {
-              if (!err && row.count === 0) {
+              if (!err && row && row.count === 0) {
                   const stmt = db.prepare("INSERT INTO global_banks (name, logo) VALUES (?, ?)");
-                  INITIAL_BANKS_SEED.forEach(b => {
-                      stmt.run(b.name, b.logo);
-                  });
+                  INITIAL_BANKS_SEED.forEach(b => stmt.run(b.name, b.logo));
                   stmt.finalize();
-                  console.log("Global banks seeded.");
               }
           });
       }
   });
 
-  // Users
+  // 2. Users
   db.run(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE,
@@ -254,13 +232,13 @@ db.serialize(() => {
     reset_token TEXT,
     reset_token_expires INTEGER
   )`, (err) => {
-      if (!err) {
+      if(!err) {
           ensureColumn('users', 'reset_token', 'TEXT');
           ensureColumn('users', 'reset_token_expires', 'INTEGER');
       }
   });
 
-  // Pending Signups
+  // 3. Pending Signups
   db.run(`CREATE TABLE IF NOT EXISTS pending_signups (
     email TEXT PRIMARY KEY,
     token TEXT,
@@ -268,15 +246,9 @@ db.serialize(() => {
     razao_social TEXT,
     phone TEXT,
     created_at INTEGER
-  )`, (err) => {
-      if (!err) {
-          db.run("ALTER TABLE pending_signups ADD COLUMN cnpj TEXT", () => {});
-          db.run("ALTER TABLE pending_signups ADD COLUMN razao_social TEXT", () => {});
-          db.run("ALTER TABLE pending_signups ADD COLUMN phone TEXT", () => {});
-      }
-  });
+  )`);
 
-  // Banks (User Specific)
+  // 4. Banks (User Specific)
   db.run(`CREATE TABLE IF NOT EXISTS banks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -294,7 +266,7 @@ db.serialize(() => {
       }
   });
 
-  // Categories
+  // 5. Categories
   db.run(`CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -303,7 +275,7 @@ db.serialize(() => {
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 
-  // OFX
+  // 6. OFX
   db.run(`CREATE TABLE IF NOT EXISTS ofx_imports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -314,12 +286,10 @@ db.serialize(() => {
     content TEXT,
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`, (err) => {
-      if (!err) {
-          ensureColumn('ofx_imports', 'content', 'TEXT');
-      }
+      if(!err) ensureColumn('ofx_imports', 'content', 'TEXT');
   });
 
-  // Transactions
+  // 7. Transactions
   db.run(`CREATE TABLE IF NOT EXISTS transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -334,7 +304,7 @@ db.serialize(() => {
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 
-  // Forecasts
+  // 8. Forecasts
   db.run(`CREATE TABLE IF NOT EXISTS forecasts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -351,7 +321,7 @@ db.serialize(() => {
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 
-  // Keyword Rules
+  // 9. Keyword Rules
   db.run(`CREATE TABLE IF NOT EXISTS keyword_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -366,7 +336,7 @@ db.serialize(() => {
 app.get('/api/global-banks', (req, res) => {
     db.all('SELECT * FROM global_banks ORDER BY name ASC', [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
+        res.json(rows || []);
     });
 });
 
@@ -392,14 +362,16 @@ app.post('/api/admin/banks', checkAdmin, async (req, res) => {
             // Extract extension and data
             const matches = logoData.match(/^data:image\/([A-Za-z-+\/]+);base64,(.+)$/);
             if (matches && matches.length === 3) {
-                const extension = matches[1].split('+')[0];
+                const extension = matches[1].includes('+') ? matches[1].split('+')[0] : matches[1]; 
                 const base64Data = matches[2];
                 const buffer = Buffer.from(base64Data, 'base64');
                 
                 const fileName = `bank_${Date.now()}.${extension.replace('jpeg','jpg')}`;
-                const filePath = path.join(LOGO_DIR, fileName);
                 
+                // SALVAR NO PERSISTENTE
+                const filePath = path.join(PERSISTENT_LOGO_DIR, fileName);
                 fs.writeFileSync(filePath, buffer);
+                
                 logoPath = `/logo/${fileName}`;
             }
         } catch (e) {
@@ -416,6 +388,7 @@ app.post('/api/admin/banks', checkAdmin, async (req, res) => {
     });
 });
 
+// ATUALIZAÇÃO COM PERSISTÊNCIA E PROPAGAÇÃO
 app.put('/api/admin/banks/:id', checkAdmin, (req, res) => {
     const { name, logoData } = req.body;
     const { id } = req.params;
@@ -429,6 +402,7 @@ app.put('/api/admin/banks/:id', checkAdmin, (req, res) => {
         const oldName = row.name;
         let logoPath = row.logo;
 
+        // Se nova imagem foi enviada
         if (logoData && logoData.startsWith('data:image')) {
              try {
                 const matches = logoData.match(/^data:image\/([A-Za-z-+\/]+);base64,(.+)$/);
@@ -438,9 +412,11 @@ app.put('/api/admin/banks/:id', checkAdmin, (req, res) => {
                     const buffer = Buffer.from(base64Data, 'base64');
                     
                     const fileName = `bank_${Date.now()}.${extension.replace('jpeg','jpg')}`;
-                    const filePath = path.join(LOGO_DIR, fileName);
                     
+                    // SALVAR NO PERSISTENTE
+                    const filePath = path.join(PERSISTENT_LOGO_DIR, fileName);
                     fs.writeFileSync(filePath, buffer);
+                    
                     logoPath = `/logo/${fileName}`;
                 }
             } catch (e) {
@@ -464,7 +440,6 @@ app.put('/api/admin/banks/:id', checkAdmin, (req, res) => {
 });
 
 app.delete('/api/admin/banks/:id', checkAdmin, (req, res) => {
-    // Optionally delete the file if it's custom, but simple delete DB row is safer for now
     db.run('DELETE FROM global_banks WHERE id = ?', [req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: "Banco removido" });
@@ -591,7 +566,7 @@ app.get('/api/admin/audit-transactions', checkAdmin, (req, res) => {
 });
 
 
-// --- AUTH ROUTES --- (Mantidos)
+// --- AUTH ROUTES ---
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
   if (email === process.env.MAIL_ADMIN && password === process.env.PASSWORD_ADMIN) {
@@ -663,10 +638,10 @@ app.post('/api/complete-signup', (req, res) => {
           // SEED FROM GLOBAL BANKS
           db.all('SELECT * FROM global_banks', [], (err, globalBanks) => {
               if (!err && globalBanks.length > 0) {
-                  const bankStmt = db.prepare("INSERT INTO banks (user_id, name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, ?, 1, 0)");
+                  const bankStmt = db.prepare("INSERT INTO banks (user_id, name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, ?, ?, ?)");
                   globalBanks.forEach(b => {
                       // Default values for new user copy
-                      bankStmt.run(newUserId, b.name, '0000-0', b.name, b.logo);
+                      bankStmt.run(newUserId, b.name, '0000-0', b.name, b.logo, 0, 0);
                   });
                   bankStmt.finalize();
               }
@@ -735,8 +710,15 @@ app.get('/api/validate-signup-token/:token', (req, res) => {
 app.get('/api/banks', checkAuth, (req, res) => {
     db.all(`SELECT * FROM banks WHERE user_id = ?`, [req.userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        // Ensure active defaults to true if column was just added and is null
-        res.json(rows.map(b => ({ ...b, active: b.active !== 0 })));
+        res.json(rows.map(b => ({
+            id: b.id,
+            name: b.name,
+            accountNumber: b.account_number,
+            nickname: b.nickname,
+            logo: b.logo,
+            active: Boolean(b.active),
+            balance: b.balance
+        })));
     });
 });
 
