@@ -116,7 +116,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   };
 
   const handleDownloadOFX = (importId: number) => {
-      window.open(`/api/admin/ofx-download/${importId}?user-id=admin`, '_blank');
+      window.open(`/api/admin/ofx-download/${importId}?userId=admin`, '_blank');
   };
 
   // Helper to filter data by date range

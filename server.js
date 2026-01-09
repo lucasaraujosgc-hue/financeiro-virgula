@@ -124,12 +124,13 @@ app.use(express.json({ limit: '10mb' })); // Increased limit for OFX files
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // Servir a pasta de logos separadamente para garantir acesso
-// Assume que a pasta 'logo' está na raiz do projeto (mesmo nível do server.js)
 app.use('/logo', express.static(path.join(__dirname, 'logo')));
 
 // Middleware para validar userId e Admin
 const getUserId = (req) => {
-    const userId = req.headers['user-id'];
+    // Check header first, then query param (useful for window.open/downloads)
+    // Supports both 'user-id' (header standard) and 'userId' (query param standard)
+    const userId = req.headers['user-id'] || req.query['userId'] || req.query['user-id'];
     return userId ? String(userId) : null;
 };
 
@@ -706,7 +707,7 @@ app.post('/api/transactions', checkAuth, (req, res) => {
 app.put('/api/transactions/:id', checkAuth, (req, res) => {
   const { date, description, value, type, categoryId, bankId, reconciled } = req.body;
   let query = `UPDATE transactions SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ?`;
-  const params = [date, description, value, type, categoryId, bankId];
+  const params = [date, description, value, type, category_id, bankId];
   if (reconciled !== undefined) {
       query += `, reconciled = ?`;
       params.push(reconciled ? 1 : 0);
@@ -827,7 +828,7 @@ app.put('/api/forecasts/:id', checkAuth, (req, res) => {
     const { date, description, value, type, categoryId, bankId } = req.body;
     db.run(
         `UPDATE forecasts SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ? WHERE id = ? AND user_id = ?`,
-        [date, description, value, type, categoryId, bankId, req.params.id, req.userId],
+        [date, description, value, type, category_id, bankId, req.params.id, req.userId],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ success: true });
