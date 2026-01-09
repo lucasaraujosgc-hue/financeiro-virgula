@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bank } from '../types';
 import { Plus, Power, Edit2, X, Trash2 } from 'lucide-react';
 
@@ -9,33 +9,31 @@ interface BankListProps {
   onDeleteBank: (id: number) => void;
 }
 
-const AVAILABLE_BANKS_PRESETS = [
-  { name: 'Nubank', logo: '/logo/nubank.jpg' },
-  { name: 'Itaú', logo: '/logo/itau.png' },
-  { name: 'Bradesco', logo: '/logo/bradesco.jpg' },
-  { name: 'Caixa Econômica', logo: '/logo/caixa.png' },
-  { name: 'Banco do Brasil', logo: '/logo/bb.png' },
-  { name: 'Santander', logo: '/logo/santander.png' },
-  { name: 'Inter', logo: '/logo/inter.png' },
-  { name: 'BTG Pactual', logo: '/logo/btg_pactual.png' },
-  { name: 'C6 Bank', logo: '/logo/c6_bank.png' },
-  { name: 'Sicredi', logo: '/logo/sicredi.png' },
-  { name: 'Sicoob', logo: '/logo/sicoob.png' },
-  { name: 'Mercado Pago', logo: '/logo/mercado_pago.png' },
-  { name: 'PagBank', logo: '/logo/pagbank.png' },
-  { name: 'Stone', logo: '/logo/stone.png' },
-  { name: 'Banco Safra', logo: '/logo/safra.png' },
-  { name: 'Banco Pan', logo: '/logo/banco_pan.png' },
-  { name: 'Banrisul', logo: '/logo/banrisul.png' },
-  { name: 'Neon', logo: '/logo/neon.png' },
-  { name: 'Caixa Registradora', logo: '/logo/caixaf.png' },
-];
-
 const BankList: React.FC<BankListProps> = ({ banks, onUpdateBank, onAddBank, onDeleteBank }) => {
   const [editingBank, setEditingBank] = useState<Bank | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<{name: string, logo: string} | null>(null);
   const [newBankData, setNewBankData] = useState({ nickname: '', accountNumber: '' });
+  
+  // Dynamic list of available banks fetched from API
+  const [availablePresets, setAvailablePresets] = useState<{id: number, name: string, logo: string}[]>([]);
+
+  useEffect(() => {
+      if (isAddModalOpen) {
+          fetchGlobalBanks();
+      }
+  }, [isAddModalOpen]);
+
+  const fetchGlobalBanks = async () => {
+      try {
+          const res = await fetch('/api/global-banks');
+          if (res.ok) {
+              setAvailablePresets(await res.json());
+          }
+      } catch (e) {
+          console.error("Failed to fetch global banks", e);
+      }
+  };
 
   const activeBanks = banks.filter(b => b.active);
 
@@ -163,7 +161,7 @@ const BankList: React.FC<BankListProps> = ({ banks, onUpdateBank, onAddBank, onD
                     /* Step 1: Select Bank Preset */
                     <div className="p-6 overflow-y-auto custom-scroll">
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                            {AVAILABLE_BANKS_PRESETS.map((preset, idx) => (
+                            {availablePresets.map((preset, idx) => (
                                 <button 
                                     key={idx}
                                     onClick={() => setSelectedPreset(preset)}

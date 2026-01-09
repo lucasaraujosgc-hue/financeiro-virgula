@@ -15,6 +15,11 @@ const __dirname = path.dirname(__filename);
 // Isso permite acessar http://localhost:3000/logo/nubank.jpg
 const LOGO_DIR = path.join(__dirname, 'logo');
 
+// Garante que a pasta existe
+if (!fs.existsSync(LOGO_DIR)){
+    fs.mkdirSync(LOGO_DIR);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -113,27 +118,27 @@ const sendEmail = async (to, subject, htmlContent) => {
   }
 };
 
-// --- DATA SEEDING --- (Mantido igual ao original)
+// --- DATA SEEDING --- 
 const INITIAL_BANKS_SEED = [
-  { name: 'Nubank', accountNumber: '1234-5', nickname: 'Principal', logo: '/logo/nubank.jpg', active: 0, balance: 0 },
-  { name: 'Itaú', accountNumber: '9876-0', nickname: 'Reserva', logo: '/logo/itau.png', active: 0, balance: 0 },
-  { name: 'Bradesco', accountNumber: '1111-2', nickname: 'PJ', logo: '/logo/bradesco.jpg', active: 0, balance: 0 },
-  { name: 'Caixa Econômica', accountNumber: '0001-9', nickname: 'Caixa', logo: '/logo/caixa.png', active: 0, balance: 0 },
-  { name: 'Banco do Brasil', accountNumber: '4455-6', nickname: 'BB', logo: '/logo/bb.png', active: 0, balance: 0 },
-  { name: 'Santander', accountNumber: '7788-9', nickname: 'Santander', logo: '/logo/santander.png', active: 0, balance: 0 },
-  { name: 'Inter', accountNumber: '3322-1', nickname: 'Inter', logo: '/logo/inter.png', active: 0, balance: 0 },
-  { name: 'BTG Pactual', accountNumber: '5566-7', nickname: 'Investimentos', logo: '/logo/btg_pactual.png', active: 0, balance: 0 },
-  { name: 'C6 Bank', accountNumber: '9988-7', nickname: 'C6', logo: '/logo/c6_bank.png', active: 0, balance: 0 },
-  { name: 'Sicredi', accountNumber: '1212-3', nickname: 'Cooperativa', logo: '/logo/sicredi.png', active: 0, balance: 0 },
-  { name: 'Sicoob', accountNumber: '3434-5', nickname: 'Sicoob', logo: '/logo/sicoob.png', active: 0, balance: 0 },
-  { name: 'Mercado Pago', accountNumber: '0000-0', nickname: 'Vendas', logo: '/logo/mercado_pago.png', active: 0, balance: 0 },
-  { name: 'PagBank', accountNumber: '0000-0', nickname: 'Maquininha', logo: '/logo/pagbank.png', active: 0, balance: 0 },
-  { name: 'Stone', accountNumber: '0000-0', nickname: 'Stone', logo: '/logo/stone.png', active: 0, balance: 0 },
-  { name: 'Banco Safra', accountNumber: '0000-0', nickname: 'Safra', logo: '/logo/safra.png', active: 0, balance: 0 },
-  { name: 'Banco Pan', accountNumber: '0000-0', nickname: 'Pan', logo: '/logo/banco_pan.png', active: 0, balance: 0 },
-  { name: 'Banrisul', accountNumber: '0000-0', nickname: 'Sul', logo: '/logo/banrisul.png', active: 0, balance: 0 },
-  { name: 'Neon', accountNumber: '0000-0', nickname: 'Neon', logo: '/logo/neon.png', active: 0, balance: 0 },
-  { name: 'Caixa Registradora', accountNumber: '-', nickname: 'Dinheiro Físico', logo: '/logo/caixaf.png', active: 0, balance: 0 },
+  { name: 'Nubank', logo: '/logo/nubank.jpg' },
+  { name: 'Itaú', logo: '/logo/itau.png' },
+  { name: 'Bradesco', logo: '/logo/bradesco.jpg' },
+  { name: 'Caixa Econômica', logo: '/logo/caixa.png' },
+  { name: 'Banco do Brasil', logo: '/logo/bb.png' },
+  { name: 'Santander', logo: '/logo/santander.png' },
+  { name: 'Inter', logo: '/logo/inter.png' },
+  { name: 'BTG Pactual', logo: '/logo/btg_pactual.png' },
+  { name: 'C6 Bank', logo: '/logo/c6_bank.png' },
+  { name: 'Sicredi', logo: '/logo/sicredi.png' },
+  { name: 'Sicoob', logo: '/logo/sicoob.png' },
+  { name: 'Mercado Pago', logo: '/logo/mercado_pago.png' },
+  { name: 'PagBank', logo: '/logo/pagbank.png' },
+  { name: 'Stone', logo: '/logo/stone.png' },
+  { name: 'Banco Safra', logo: '/logo/safra.png' },
+  { name: 'Banco Pan', logo: '/logo/banco_pan.png' },
+  { name: 'Banrisul', logo: '/logo/banrisul.png' },
+  { name: 'Neon', logo: '/logo/neon.png' },
+  { name: 'Caixa Registradora', logo: '/logo/caixaf.png' },
 ];
 
 const RECEITAS_LIST = [
@@ -178,6 +183,27 @@ const INITIAL_CATEGORIES_SEED = [
 
 // Initialize Tables & Seed
 db.serialize(() => {
+  // Global Banks (Master List)
+  db.run(`CREATE TABLE IF NOT EXISTS global_banks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    logo TEXT
+  )`, (err) => {
+      if (!err) {
+          // Check if empty, if so, seed
+          db.get("SELECT COUNT(*) as count FROM global_banks", [], (err, row) => {
+              if (!err && row.count === 0) {
+                  const stmt = db.prepare("INSERT INTO global_banks (name, logo) VALUES (?, ?)");
+                  INITIAL_BANKS_SEED.forEach(b => {
+                      stmt.run(b.name, b.logo);
+                  });
+                  stmt.finalize();
+                  console.log("Global banks seeded.");
+              }
+          });
+      }
+  });
+
   // Users
   db.run(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -211,7 +237,7 @@ db.serialize(() => {
       }
   });
 
-  // Banks
+  // Banks (User Specific)
   db.run(`CREATE TABLE IF NOT EXISTS banks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -293,7 +319,70 @@ db.serialize(() => {
   )`);
 });
 
-// --- ADMIN ROUTES --- (Mantidos)
+// --- PUBLIC ROUTES (For Frontend Selection) ---
+app.get('/api/global-banks', (req, res) => {
+    db.all('SELECT * FROM global_banks ORDER BY name ASC', [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+// --- ADMIN ROUTES ---
+
+// 0. Manage Global Banks
+app.get('/api/admin/banks', checkAdmin, (req, res) => {
+    db.all('SELECT * FROM global_banks ORDER BY id DESC', [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+app.post('/api/admin/banks', checkAdmin, async (req, res) => {
+    const { name, logoData } = req.body; // logoData should be base64 string
+    
+    if (!name) return res.status(400).json({ error: "Nome é obrigatório" });
+
+    let logoPath = '/logo/caixaf.png'; // Default fallback
+
+    if (logoData && logoData.startsWith('data:image')) {
+        try {
+            // Extract extension and data
+            const matches = logoData.match(/^data:image\/([A-Za-z-+\/]+);base64,(.+)$/);
+            if (matches && matches.length === 3) {
+                const extension = matches[1];
+                const base64Data = matches[2];
+                const buffer = Buffer.from(base64Data, 'base64');
+                
+                const fileName = `bank_${Date.now()}.${extension}`;
+                const filePath = path.join(LOGO_DIR, fileName);
+                
+                fs.writeFileSync(filePath, buffer);
+                logoPath = `/logo/${fileName}`;
+            }
+        } catch (e) {
+            console.error("Error saving logo:", e);
+            return res.status(500).json({ error: "Erro ao salvar imagem" });
+        }
+    } else if (logoData) {
+        // Assume it might be a path string if not base64 (e.g. duplicating existing)
+        logoPath = logoData;
+    }
+
+    db.run('INSERT INTO global_banks (name, logo) VALUES (?, ?)', [name, logoPath], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ id: this.lastID, name, logo: logoPath });
+    });
+});
+
+app.delete('/api/admin/banks/:id', checkAdmin, (req, res) => {
+    // Optionally delete the file if it's custom, but simple delete DB row is safer for now
+    db.run('DELETE FROM global_banks WHERE id = ?', [req.params.id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: "Banco removido" });
+    });
+});
+
+// 1. Get All Users
 app.get('/api/admin/users', checkAdmin, (req, res) => {
     db.all('SELECT id, email, cnpj, razao_social, phone FROM users', [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -301,6 +390,7 @@ app.get('/api/admin/users', checkAdmin, (req, res) => {
     });
 });
 
+// 2. Get Single User Full Data (For Admin Dashboard)
 app.get('/api/admin/users/:id/full-data', checkAdmin, async (req, res) => {
     const userId = req.params.id;
     try {
@@ -339,6 +429,7 @@ app.get('/api/admin/users/:id/full-data', checkAdmin, async (req, res) => {
     }
 });
 
+// 3. Download OFX Content
 app.get('/api/admin/ofx-download/:id', checkAdmin, (req, res) => {
     db.get('SELECT file_name, content FROM ofx_imports WHERE id = ?', [req.params.id], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -350,6 +441,7 @@ app.get('/api/admin/ofx-download/:id', checkAdmin, (req, res) => {
     });
 });
 
+// 4. Delete User & All Data
 app.delete('/api/admin/users/:id', checkAdmin, (req, res) => {
     const userId = req.params.id;
     db.serialize(() => {
@@ -371,6 +463,7 @@ app.delete('/api/admin/users/:id', checkAdmin, (req, res) => {
     });
 });
 
+// 5. Get Global Data Stats
 app.get('/api/admin/global-data', checkAdmin, (req, res) => {
     const queries = {
         users: 'SELECT COUNT(*) as count FROM users',
@@ -393,6 +486,7 @@ app.get('/api/admin/global-data', checkAdmin, (req, res) => {
     });
 });
 
+// 6. Get Global Transactions (For Audit)
 app.get('/api/admin/audit-transactions', checkAdmin, (req, res) => {
     const sql = `
         SELECT t.id, t.date, t.description, t.value, t.type, u.razao_social 
@@ -468,6 +562,7 @@ app.post('/api/complete-signup', (req, res) => {
   db.get('SELECT * FROM pending_signups WHERE token = ?', [token], (err, pendingUser) => {
       if (err) return res.status(500).json({ error: err.message });
       if (!pendingUser) return res.status(400).json({ error: "Token inválido ou expirado." });
+      
       db.run(
         `INSERT INTO users (email, password, cnpj, razao_social, phone) VALUES (?, ?, ?, ?, ?)`,
         [pendingUser.email, password, pendingUser.cnpj, pendingUser.razao_social, pendingUser.phone],
@@ -475,11 +570,19 @@ app.post('/api/complete-signup', (req, res) => {
           if (err) return res.status(500).json({ error: err.message });
           const newUserId = this.lastID;
           db.run('DELETE FROM pending_signups WHERE email = ?', [pendingUser.email]);
-          const bankStmt = db.prepare("INSERT INTO banks (user_id, name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, ?, ?, ?)");
-          INITIAL_BANKS_SEED.forEach(b => {
-              bankStmt.run(newUserId, b.name, b.accountNumber, b.nickname, b.logo, b.active, b.balance);
+          
+          // SEED FROM GLOBAL BANKS
+          db.all('SELECT * FROM global_banks', [], (err, globalBanks) => {
+              if (!err && globalBanks.length > 0) {
+                  const bankStmt = db.prepare("INSERT INTO banks (user_id, name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                  globalBanks.forEach(b => {
+                      // Default values for new user copy
+                      bankStmt.run(newUserId, b.name, '0000-0', b.name, b.logo, 0, 0);
+                  });
+                  bankStmt.finalize();
+              }
           });
-          bankStmt.finalize();
+
           const catStmt = db.prepare("INSERT INTO categories (user_id, name, type) VALUES (?, ?, ?)");
           INITIAL_CATEGORIES_SEED.forEach(c => {
               catStmt.run(newUserId, c.name, c.type);

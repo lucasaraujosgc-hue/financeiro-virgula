@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Users, LayoutDashboard, FileText, Trash2, LogOut, ShieldAlert, BarChart, Eye, X, Download, Calendar, Receipt, ArrowUpRight, FileSpreadsheet } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Users, LayoutDashboard, FileText, Trash2, LogOut, ShieldAlert, BarChart, Eye, X, Download, Calendar, Receipt, ArrowUpRight, FileSpreadsheet, Landmark, Plus, Upload } from 'lucide-react';
 
 interface AdminPanelProps {
   onLogout: () => void;
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'audit'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'audit' | 'banks'>('dashboard');
   const [stats, setStats] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [auditData, setAuditData] = useState<any[]>([]);
+  const [adminBanks, setAdminBanks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   // User Detail View State
@@ -18,6 +19,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   const [detailTab, setDetailTab] = useState<'transactions' | 'forecasts' | 'files'>('transactions');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // Bank Form State
+  const [newBankName, setNewBankName] = useState('');
+  const [newBankLogo, setNewBankLogo] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getHeaders = () => ({
       'Content-Type': 'application/json',
@@ -31,6 +37,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   useEffect(() => {
       if (activeTab === 'users') fetchUsers();
       if (activeTab === 'audit') fetchAuditData();
+      if (activeTab === 'banks') fetchAdminBanks();
   }, [activeTab]);
 
   const fetchStats = async () => {
@@ -54,6 +61,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
       try {
           const res = await fetch('/api/admin/audit-transactions', { headers: getHeaders() });
           if(res.ok) setAuditData(await res.json());
+      } catch (e) { console.error(e); }
+      finally { setLoading(false); }
+  };
+
+  const fetchAdminBanks = async () => {
+      setLoading(true);
+      try {
+          const res = await fetch('/api/admin/banks', { headers: getHeaders() });
+          if(res.ok) setAdminBanks(await res.json());
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
   };
@@ -97,6 +113,54 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
       }
   };
 
+  // --- Bank Management Functions ---
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              setNewBankLogo(reader.result as string);
+          };
+          reader.readAsDataURL(file);
+      }
+  };
+
+  const handleCreateBank = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newBankName) return alert("Nome do banco é obrigatório");
+
+      try {
+          const res = await fetch('/api/admin/banks', {
+              method: 'POST',
+              headers: getHeaders(),
+              body: JSON.stringify({ name: newBankName, logoData: newBankLogo })
+          });
+          
+          if (res.ok) {
+              setNewBankName('');
+              setNewBankLogo(null);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+              fetchAdminBanks();
+              alert("Banco cadastrado com sucesso!");
+          } else {
+              alert("Erro ao cadastrar banco");
+          }
+      } catch (err) {
+          console.error(err);
+      }
+  };
+
+  const handleDeleteBank = async (id: number) => {
+      if(confirm("Excluir este banco? Isso afetará apenas novos cadastros de usuários.")) {
+          try {
+              await fetch(`/api/admin/banks/${id}`, { method: 'DELETE', headers: getHeaders() });
+              fetchAdminBanks();
+          } catch(e) {
+              alert("Erro ao excluir");
+          }
+      }
+  };
+
   const handleExportExcel = (data: any[], filename: string) => {
       if (!data || data.length === 0) return alert("Sem dados para exportar.");
       const headers = Object.keys(data[0]).join(',');
@@ -112,7 +176,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   };
 
   const handleDownloadOFX = (importId: number) => {
-      // Abre nova aba enviando userId na URL para autenticação
       window.open(`/api/admin/ofx-download/${importId}?userId=admin`, '_blank');
   };
 
@@ -136,6 +199,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
           <nav className="flex-1 p-4 space-y-2">
               <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'dashboard' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><LayoutDashboard size={20}/> Dashboard</button>
               <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'users' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><Users size={20}/> Usuários</button>
+              <button onClick={() => setActiveTab('banks')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'banks' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><Landmark size={20}/> Bancos</button>
               <button onClick={() => setActiveTab('audit')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'audit' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><FileText size={20}/> Auditoria</button>
           </nav>
           <div className="p-4 border-t border-slate-800">
@@ -174,6 +238,80 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                                       <td className="px-6 py-4 text-center flex items-center justify-center gap-2">
                                           <button onClick={() => handleOpenUser(user)} className="p-2 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20"><Eye size={18}/></button>
                                           <button onClick={() => handleDeleteUser(user.id, user.email)} className="p-2 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={18}/></button>
+                                      </td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                  </div>
+              </div>
+          )}
+
+          {activeTab === 'banks' && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                  <div className="flex justify-between items-center">
+                      <h2 className="text-2xl font-bold text-white">Cadastro de Bancos Globais</h2>
+                  </div>
+
+                  {/* Add Bank Form */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                      <h3 className="font-semibold text-white mb-4 flex items-center gap-2"><Plus size={18}/> Novo Banco</h3>
+                      <form onSubmit={handleCreateBank} className="flex gap-4 items-end">
+                          <div className="flex-1">
+                              <label className="block text-xs font-bold text-slate-500 mb-1">Nome da Instituição</label>
+                              <input 
+                                type="text" 
+                                className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-2"
+                                placeholder="Ex: Banco XP"
+                                value={newBankName}
+                                onChange={e => setNewBankName(e.target.value)}
+                              />
+                          </div>
+                          <div>
+                              <label className="block text-xs font-bold text-slate-500 mb-1">Logo (Imagem)</label>
+                              <input 
+                                type="file" 
+                                accept="image/*"
+                                ref={fileInputRef}
+                                onChange={handleLogoUpload}
+                                className="hidden"
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg border border-slate-700 transition-colors"
+                              >
+                                  <Upload size={16}/> {newBankLogo ? 'Logo Selecionado' : 'Carregar Logo'}
+                              </button>
+                          </div>
+                          {newBankLogo && (
+                              <div className="w-10 h-10 bg-white rounded p-1">
+                                  <img src={newBankLogo} className="w-full h-full object-contain" />
+                              </div>
+                          )}
+                          <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg font-bold">
+                              Cadastrar
+                          </button>
+                      </form>
+                  </div>
+
+                  {/* Banks List */}
+                  <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+                      <table className="w-full text-sm text-left">
+                          <thead className="bg-slate-800 text-slate-400 font-bold">
+                              <tr><th className="px-6 py-4">Logo</th><th className="px-6 py-4">Nome</th><th className="px-6 py-4 text-center">Ações</th></tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800">
+                              {adminBanks.map(bank => (
+                                  <tr key={bank.id} className="hover:bg-slate-800/50">
+                                      <td className="px-6 py-3">
+                                          <div className="w-8 h-8 bg-white rounded flex items-center justify-center p-1">
+                                              <img src={bank.logo} className="max-w-full max-h-full object-contain" onError={(e) => (e.target as HTMLImageElement).src = 'https://via.placeholder.com/30'}/>
+                                          </div>
+                                      </td>
+                                      <td className="px-6 py-3 font-medium text-white">{bank.name}</td>
+                                      <td className="px-6 py-3 text-center">
+                                          <button onClick={() => handleDeleteBank(bank.id)} className="p-2 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20"><Trash2 size={18}/></button>
                                       </td>
                                   </tr>
                               ))}
