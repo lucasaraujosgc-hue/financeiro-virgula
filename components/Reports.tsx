@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, Category } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ComposedChart, Line } from 'recharts';
-import { ChevronLeft, ChevronRight, Filter, Download, CalendarRange, Percent, Activity, TrendingUp, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Download, CalendarRange, Percent, Activity, TrendingUp, Info, Target, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface ReportsProps {
   transactions: Transaction[];
@@ -58,7 +58,7 @@ const READINGS = {
 };
 
 const Reports: React.FC<ReportsProps> = () => {
-  const [activeTab, setActiveTab] = useState<'cashflow' | 'dre' | 'analysis'>('cashflow');
+  const [activeTab, setActiveTab] = useState<'cashflow' | 'dre' | 'analysis' | 'forecasts'>('cashflow');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
   const [loading, setLoading] = useState(false);
@@ -104,6 +104,7 @@ const Reports: React.FC<ReportsProps> = () => {
       if (activeTab === 'cashflow') endpoint = `/api/reports/cash-flow?year=${year}&month=${month}`;
       if (activeTab === 'dre') endpoint = `/api/reports/dre?year=${year}&month=${month}`;
       if (activeTab === 'analysis') endpoint = `/api/reports/analysis?year=${year}&month=${month}`;
+      if (activeTab === 'forecasts') endpoint = `/api/reports/forecasts?year=${year}&month=${month}`;
 
       try {
           const res = await fetch(endpoint, {
@@ -167,7 +168,6 @@ const Reports: React.FC<ReportsProps> = () => {
   };
 
   const renderCashFlow = () => {
-      // Validate correct data shape for Cashflow summary
       if (!data || typeof data.totalReceitas === 'undefined') return null;
       
       return (
@@ -286,7 +286,6 @@ const Reports: React.FC<ReportsProps> = () => {
   };
 
   const renderDRE = () => {
-      // Validate correct data shape for DRE
       if (!data || typeof data.receitaBruta === 'undefined') return null;
 
       const DreRow = ({ label, value, isTotal = false, isSubtotal = false, indent = false }: any) => (
@@ -339,10 +338,8 @@ const Reports: React.FC<ReportsProps> = () => {
   };
 
   const renderAnalysis = () => {
-      // Validate correct data shape for Analysis
       if (!data || !data.receitas) return null;
 
-      // KPI Helper with Enhanced Tooltip
       const KPI = ({ title, value, icon, type }: { title: string, value: number, icon: any, type: 'MC' | 'RO' | 'RL' }) => (
           <div className="bg-surface p-4 rounded-xl border border-slate-800 shadow-sm flex flex-col justify-between h-full relative group">
               <div className="flex justify-between items-start mb-2">
@@ -358,7 +355,6 @@ const Reports: React.FC<ReportsProps> = () => {
                   <Info size={14} className="text-slate-500 cursor-help" />
               </div>
 
-              {/* Enhanced Tooltip */}
               <div className="absolute top-full left-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 z-50 hidden group-hover:block animate-in fade-in zoom-in duration-150">
                   <h5 className="font-bold text-white text-xs mb-2 border-b border-slate-800 pb-1">Referências por Setor (%)</h5>
                   <ul className="space-y-1 mb-3">
@@ -384,27 +380,11 @@ const Reports: React.FC<ReportsProps> = () => {
       return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               
-              {/* KPIs Row */}
               {data.kpis && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <KPI 
-                        title="Margem de Contribuição" 
-                        value={data.kpis.margemContribuicaoPct} 
-                        icon={<Percent size={18}/>}
-                        type="MC"
-                      />
-                      <KPI 
-                        title="Resultado Operacional" 
-                        value={data.kpis.resultadoOperacionalPct} 
-                        icon={<Activity size={18}/>}
-                        type="RO"
-                      />
-                      <KPI 
-                        title="Resultado Líquido" 
-                        value={data.kpis.resultadoLiquidoPct} 
-                        icon={<TrendingUp size={18}/>}
-                        type="RL"
-                      />
+                      <KPI title="Margem de Contribuição" value={data.kpis.margemContribuicaoPct} icon={<Percent size={18}/>} type="MC"/>
+                      <KPI title="Resultado Operacional" value={data.kpis.resultadoOperacionalPct} icon={<Activity size={18}/>} type="RO"/>
+                      <KPI title="Resultado Líquido" value={data.kpis.resultadoLiquidoPct} icon={<TrendingUp size={18}/>} type="RL"/>
                   </div>
               )}
 
@@ -447,6 +427,146 @@ const Reports: React.FC<ReportsProps> = () => {
       );
   };
 
+  const renderForecasts = () => {
+      if (!data || !data.summary) return null;
+
+      const chartData = [
+          {
+              name: 'Receitas',
+              Previsto: data.summary.predictedIncome,
+              Realizado: data.summary.realizedIncome,
+              Pendente: data.summary.pendingIncome
+          },
+          {
+              name: 'Despesas',
+              Previsto: data.summary.predictedExpense,
+              Realizado: data.summary.realizedExpense,
+              Pendente: data.summary.pendingExpense
+          }
+      ];
+
+      return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
+                      <h3 className="text-emerald-400 font-bold mb-4 flex items-center gap-2">
+                          <Target size={20}/> Receitas Previstas
+                      </h3>
+                      <div className="flex justify-between items-end mb-2">
+                          <div>
+                              <p className="text-slate-400 text-xs uppercase">Total Previsto</p>
+                              <p className="text-2xl font-bold text-white">R$ {data.summary.predictedIncome.toFixed(2)}</p>
+                          </div>
+                          <div className="text-right">
+                              <p className="text-slate-400 text-xs uppercase">Realizado</p>
+                              <p className="text-xl font-bold text-emerald-500">
+                                  {data.summary.predictedIncome > 0 ? ((data.summary.realizedIncome / data.summary.predictedIncome) * 100).toFixed(1) : 0}%
+                              </p>
+                          </div>
+                      </div>
+                      <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                          <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${data.summary.predictedIncome > 0 ? (data.summary.realizedIncome / data.summary.predictedIncome) * 100 : 0}%` }}></div>
+                      </div>
+                      <div className="flex justify-between mt-2 text-xs text-slate-500">
+                          <span>Realizado: R$ {data.summary.realizedIncome.toFixed(2)}</span>
+                          <span>Pendente: R$ {data.summary.pendingIncome.toFixed(2)}</span>
+                      </div>
+                  </div>
+
+                  <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
+                      <h3 className="text-rose-400 font-bold mb-4 flex items-center gap-2">
+                          <Target size={20}/> Despesas Previstas
+                      </h3>
+                      <div className="flex justify-between items-end mb-2">
+                          <div>
+                              <p className="text-slate-400 text-xs uppercase">Total Previsto</p>
+                              <p className="text-2xl font-bold text-white">R$ {data.summary.predictedExpense.toFixed(2)}</p>
+                          </div>
+                          <div className="text-right">
+                              <p className="text-slate-400 text-xs uppercase">Realizado</p>
+                              <p className="text-xl font-bold text-rose-500">
+                                  {data.summary.predictedExpense > 0 ? ((data.summary.realizedExpense / data.summary.predictedExpense) * 100).toFixed(1) : 0}%
+                              </p>
+                          </div>
+                      </div>
+                      <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                          <div className="bg-rose-500 h-2 rounded-full" style={{ width: `${data.summary.predictedExpense > 0 ? (data.summary.realizedExpense / data.summary.predictedExpense) * 100 : 0}%` }}></div>
+                      </div>
+                      <div className="flex justify-between mt-2 text-xs text-slate-500">
+                          <span>Realizado: R$ {data.summary.realizedExpense.toFixed(2)}</span>
+                          <span>Pendente: R$ {data.summary.pendingExpense.toFixed(2)}</span>
+                      </div>
+                  </div>
+              </div>
+
+              {/* Comparative Chart */}
+              <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
+                  <h3 className="text-white font-semibold mb-6">Comparativo Previsto vs Realizado</h3>
+                  <div className="h-80 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                              <XAxis dataKey="name" tick={{fill: '#94a3b8'}} />
+                              <YAxis hide />
+                              <Tooltip 
+                                  contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px'}}
+                                  cursor={{fill: '#1e293b', opacity: 0.4}}
+                              />
+                              <Legend />
+                              <Bar dataKey="Previsto" fill="#64748b" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="Realizado" fill="#10b981" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="Pendente" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                      </ResponsiveContainer>
+                  </div>
+              </div>
+
+              {/* List of Pending Items */}
+              <div className="bg-surface rounded-xl border border-slate-800 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-slate-800 bg-amber-900/10 flex justify-between items-center">
+                      <h3 className="font-bold text-amber-500 flex items-center gap-2">
+                          <AlertCircle size={20}/> Itens Pendentes neste Mês
+                      </h3>
+                      <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded border border-amber-500/30">
+                          Ação Necessária
+                      </span>
+                  </div>
+                  <div className="overflow-x-auto max-h-80 custom-scroll">
+                      <table className="w-full text-sm text-left">
+                          <thead className="bg-slate-950 text-slate-400 font-medium sticky top-0">
+                              <tr>
+                                  <th className="px-6 py-3">Dia</th>
+                                  <th className="px-6 py-3">Descrição</th>
+                                  <th className="px-6 py-3">Categoria</th>
+                                  <th className="px-6 py-3 text-right">Valor</th>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800">
+                              {data.items.filter((i: any) => !i.realized).length === 0 ? (
+                                  <tr><td colSpan={4} className="px-6 py-8 text-center text-emerald-500 font-medium">Tudo realizado! Nenhuma pendência.</td></tr>
+                              ) : (
+                                  data.items.filter((i: any) => !i.realized).map((item: any) => (
+                                      <tr key={item.id} className="hover:bg-slate-800/30">
+                                          <td className="px-6 py-3 text-slate-400 font-mono">
+                                              {item.date.split('-')[2]}
+                                          </td>
+                                          <td className="px-6 py-3 text-slate-200">{item.description}</td>
+                                          <td className="px-6 py-3 text-slate-500 text-xs">{item.category_name || '-'}</td>
+                                          <td className={`px-6 py-3 text-right font-bold ${item.type === 'credito' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                              R$ {item.value.toFixed(2)}
+                                          </td>
+                                      </tr>
+                                  ))
+                              )}
+                          </tbody>
+                      </table>
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
@@ -455,7 +575,6 @@ const Reports: React.FC<ReportsProps> = () => {
           <p className="text-slate-400">Análise completa da saúde financeira</p>
         </div>
         
-        {/* Date Filters */}
         <div className="flex items-center gap-2 bg-surface p-1 rounded-lg border border-slate-800">
             <button onClick={handlePrevMonth} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
             <div className="px-4 text-center min-w-[140px]">
@@ -466,29 +585,33 @@ const Reports: React.FC<ReportsProps> = () => {
         </div>
       </div>
 
-      {/* Report Type Tabs */}
-      <div className="flex gap-1 bg-surface p-1 rounded-xl border border-slate-800 w-full md:w-fit">
+      <div className="flex gap-1 bg-surface p-1 rounded-xl border border-slate-800 w-full md:w-fit overflow-x-auto custom-scroll">
           <button 
             onClick={() => { setActiveTab('cashflow'); setData(null); }}
-            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'cashflow' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'cashflow' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
           >
               Fluxo de Caixa
           </button>
           <button 
+            onClick={() => { setActiveTab('forecasts'); setData(null); }}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'forecasts' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
+          >
+              Previsões
+          </button>
+          <button 
             onClick={() => { setActiveTab('dre'); setData(null); }}
-            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'dre' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'dre' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
           >
               DRE Gerencial
           </button>
           <button 
             onClick={() => { setActiveTab('analysis'); setData(null); }}
-            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'analysis' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'analysis' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
           >
               Análise Detalhada
           </button>
       </div>
 
-      {/* Content Area */}
       <div className="min-h-[400px]">
           {loading ? (
               <div className="flex items-center justify-center h-64">
@@ -497,6 +620,7 @@ const Reports: React.FC<ReportsProps> = () => {
           ) : (
               <>
                 {activeTab === 'cashflow' && renderCashFlow()}
+                {activeTab === 'forecasts' && renderForecasts()}
                 {activeTab === 'dre' && renderDRE()}
                 {activeTab === 'analysis' && renderAnalysis()}
               </>

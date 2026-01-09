@@ -33,6 +33,7 @@ const getUserId = (req) => {
     let userId = req.headers['user-id'];
     
     // 2. Se não tiver no header, tenta na Query String (downloads/window.open)
+    // Suporta tanto 'userId' (padrão camelCase) quanto 'user-id'
     if (!userId) {
         userId = req.query.userId || req.query['user-id'];
     }
@@ -67,6 +68,7 @@ if (!fs.existsSync(BACKUP_DIR)) {
   }
 }
 
+// Usando finance_v2.db
 const dbPath = fs.existsSync(BACKUP_DIR) ? path.join(BACKUP_DIR, 'finance_v2.db') : './backup/finance_v2.db';
 const db = new sqlite3.Database(dbPath);
 
@@ -93,6 +95,7 @@ const sendEmail = async (to, subject, htmlContent) => {
   }
 
   try {
+      // Configuração do ALIAS e FROM NAME
       const fromName = process.env.MAIL_FROM_NAME || "Virgula Contábil";
       const fromAddress = process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME;
       
@@ -110,7 +113,7 @@ const sendEmail = async (to, subject, htmlContent) => {
   }
 };
 
-// --- DATA SEEDING ---
+// --- DATA SEEDING --- (Mantido igual ao original)
 const INITIAL_BANKS_SEED = [
   { name: 'Nubank', accountNumber: '1234-5', nickname: 'Principal', logo: '/logo/nubank.jpg', active: 0, balance: 0 },
   { name: 'Itaú', accountNumber: '9876-0', nickname: 'Reserva', logo: '/logo/itau.png', active: 0, balance: 0 },
@@ -138,34 +141,34 @@ const RECEITAS_LIST = [
     'Prestação de Serviços',
     'Receita de Aluguel',
     'Comissões Recebidas',
-    'Receita Financeira',
+    'Receita Financeira (juros, rendimentos, aplicações)',
     'Devoluções de Despesas',
     'Reembolsos de Clientes',
-    'Transferências Internas',
-    'Aportes de Sócios',
+    'Transferências Internas (entre contas)',
+    'Aportes de Sócios / Investimentos',
     'Outras Receitas Operacionais',
-    'Receitas Não Operacionais'
+    'Receitas Não Operacionais (ex: venda de ativo imobilizado)'
 ];
 
 const DESPESAS_LIST = [
-    'Compra de Mercadorias',
+    'Compra de Mercadorias / Matéria-Prima',
     'Fretes e Transportes',
-    'Despesas com Pessoal',
-    'Serviços de Terceiros',
-    'Despesas Administrativas',
-    'Despesas Comerciais',
-    'Energia / Água / Telecom',
+    'Despesas com Pessoal (salários, pró-labore, encargos)',
+    'Serviços de Terceiros (contabilidade, marketing, consultorias)',
+    'Despesas Administrativas (papelaria, materiais de escritório)',
+    'Despesas Comerciais (comissões, propaganda, brindes)',
+    'Energia Elétrica / Água / Telefone / Internet',
     'Aluguel e Condomínio',
     'Manutenção e Limpeza',
-    'Combustível',
-    'Seguros',
-    'Tarifas Bancárias',
-    'Impostos e Taxas',
-    'Despesas Financeiras',
-    'Transferências Internas',
-    'Distribuição de Lucros',
+    'Combustível e Deslocamento',
+    'Seguros (veicular, empresarial, de vida, etc.)',
+    'Tarifas Bancárias e Juros',
+    'Impostos e Taxas (ISS, ICMS, DAS, etc.)',
+    'Despesas Financeiras (juros sobre empréstimos, multas, IOF)',
+    'Transferências Internas (entre contas)',
+    'Distribuição de Lucros / Retirada de Sócios',
     'Outras Despesas Operacionais',
-    'Despesas Não Operacionais'
+    'Despesas Não Operacionais (venda de bens, baixas contábeis)'
 ];
 
 const INITIAL_CATEGORIES_SEED = [
@@ -173,6 +176,7 @@ const INITIAL_CATEGORIES_SEED = [
     ...DESPESAS_LIST.map(name => ({ name, type: 'despesa' }))
 ];
 
+// Initialize Tables & Seed
 db.serialize(() => {
   // Users
   db.run(`CREATE TABLE IF NOT EXISTS users (
@@ -184,7 +188,12 @@ db.serialize(() => {
     phone TEXT,
     reset_token TEXT,
     reset_token_expires INTEGER
-  )`);
+  )`, (err) => {
+      if (!err) {
+          db.run("ALTER TABLE users ADD COLUMN reset_token TEXT", () => {});
+          db.run("ALTER TABLE users ADD COLUMN reset_token_expires INTEGER", () => {});
+      }
+  });
 
   // Pending Signups
   db.run(`CREATE TABLE IF NOT EXISTS pending_signups (
@@ -194,7 +203,13 @@ db.serialize(() => {
     razao_social TEXT,
     phone TEXT,
     created_at INTEGER
-  )`);
+  )`, (err) => {
+      if (!err) {
+          db.run("ALTER TABLE pending_signups ADD COLUMN cnpj TEXT", () => {});
+          db.run("ALTER TABLE pending_signups ADD COLUMN razao_social TEXT", () => {});
+          db.run("ALTER TABLE pending_signups ADD COLUMN phone TEXT", () => {});
+      }
+  });
 
   // Banks
   db.run(`CREATE TABLE IF NOT EXISTS banks (
@@ -228,7 +243,12 @@ db.serialize(() => {
     transaction_count INTEGER,
     content TEXT,
     FOREIGN KEY(user_id) REFERENCES users(id)
-  )`);
+  )`, (err) => {
+      if (!err) {
+          // Migration to add content column if missing
+          db.run("ALTER TABLE ofx_imports ADD COLUMN content TEXT", () => {});
+      }
+  });
 
   // Transactions
   db.run(`CREATE TABLE IF NOT EXISTS transactions (
@@ -273,9 +293,7 @@ db.serialize(() => {
   )`);
 });
 
-// --- ADMIN ROUTES ---
-
-// 1. Get All Users
+// --- ADMIN ROUTES --- (Mantidos)
 app.get('/api/admin/users', checkAdmin, (req, res) => {
     db.all('SELECT id, email, cnpj, razao_social, phone FROM users', [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -283,7 +301,6 @@ app.get('/api/admin/users', checkAdmin, (req, res) => {
     });
 });
 
-// 2. Get Single User Full Data
 app.get('/api/admin/users/:id/full-data', checkAdmin, async (req, res) => {
     const userId = req.params.id;
     try {
@@ -322,7 +339,6 @@ app.get('/api/admin/users/:id/full-data', checkAdmin, async (req, res) => {
     }
 });
 
-// 3. Download OFX Content (Fix for Browser Download)
 app.get('/api/admin/ofx-download/:id', checkAdmin, (req, res) => {
     db.get('SELECT file_name, content FROM ofx_imports WHERE id = ?', [req.params.id], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -334,7 +350,6 @@ app.get('/api/admin/ofx-download/:id', checkAdmin, (req, res) => {
     });
 });
 
-// 4. Delete User & All Data
 app.delete('/api/admin/users/:id', checkAdmin, (req, res) => {
     const userId = req.params.id;
     db.serialize(() => {
@@ -356,7 +371,6 @@ app.delete('/api/admin/users/:id', checkAdmin, (req, res) => {
     });
 });
 
-// 5. Get Global Data Stats
 app.get('/api/admin/global-data', checkAdmin, (req, res) => {
     const queries = {
         users: 'SELECT COUNT(*) as count FROM users',
@@ -379,7 +393,6 @@ app.get('/api/admin/global-data', checkAdmin, (req, res) => {
     });
 });
 
-// 6. Get Global Transactions (For Audit)
 app.get('/api/admin/audit-transactions', checkAdmin, (req, res) => {
     const sql = `
         SELECT t.id, t.date, t.description, t.value, t.type, u.razao_social 
@@ -395,12 +408,9 @@ app.get('/api/admin/audit-transactions', checkAdmin, (req, res) => {
 });
 
 
-// --- AUTH ROUTES ---
-
+// --- AUTH ROUTES --- (Mantidos)
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
-
-  // 1. Check for Admin Login via ENV
   if (email === process.env.MAIL_ADMIN && password === process.env.PASSWORD_ADMIN) {
       return res.json({ 
           id: 'admin', 
@@ -409,18 +419,12 @@ app.post('/api/login', (req, res) => {
           role: 'admin'
       });
   }
-
-  // 2. Normal User Login
   db.get(`SELECT * FROM users WHERE email = ? AND password = ?`, [email, password], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(401).json({ error: 'Credenciais inválidas.' });
     res.json({ id: row.id, email: row.email, razaoSocial: row.razao_social, role: 'user' });
   });
 });
-
-// ... (Rest of Auth routes: request-signup, complete-signup, recover-password, reset-password-confirm, validate-signup-token)
-// NOTE: Keeping these truncated for brevity as they haven't changed logic, but in full file they should exist.
-// Assuming they exist as in previous file content...
 
 app.post('/api/request-signup', (req, res) => {
     const { email, cnpj, razaoSocial, phone } = req.body;
@@ -435,7 +439,23 @@ app.post('/api/request-signup', (req, res) => {
                 if (err) return res.status(500).json({ error: err.message });
                 const origin = req.headers.origin || 'https://seu-app.com';
                 const link = `${origin}/?action=finalize&token=${token}`;
-                const html = `<h1>Ativar Conta</h1><a href="${link}">Clique aqui</a>`;
+                const html = `
+                <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
+                    <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                        <h1 style="color: #10b981; margin: 0 0 20px 0;">Definir Senha de Acesso</h1>
+                        <p style="color: #334155; font-size: 16px; margin-bottom: 30px;">
+                            Olá, <strong>${razaoSocial}</strong>. Seus dados foram recebidos.
+                            <br>Clique no botão abaixo para definir sua senha e ativar sua conta.
+                        </p>
+                        <a href="${link}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+                            Definir Minha Senha
+                        </a>
+                        <p style="color: #94a3b8; font-size: 12px; margin-top: 30px;">
+                            Link válido por 24 horas.
+                        </p>
+                    </div>
+                </div>
+                `;
                 await sendEmail(email, "Ative sua conta - Virgula Contábil", html);
                 res.json({ message: "Link de cadastro enviado." });
             }
@@ -481,7 +501,20 @@ app.post('/api/recover-password', (req, res) => {
             if (err) return res.status(500).json({error: err.message});
             const origin = req.headers.origin || 'https://seu-app.com';
             const link = `${origin}/?action=reset&token=${token}`;
-            await sendEmail(email, "Recuperação de Senha", `<a href="${link}">Redefinir</a>`);
+            const resetHtml = `
+            <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
+            <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                <h1 style="color: #10b981; margin: 0 0 20px 0;">Recuperação de Senha</h1>
+                <p style="color: #334155; font-size: 16px; margin-bottom: 30px;">
+                    Recebemos uma solicitação para redefinir a senha.
+                </p>
+                <a href="${link}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+                    Redefinir Minha Senha
+                </a>
+            </div>
+            </div>
+            `;
+            await sendEmail(email, "Recuperação de Senha - Virgula Contábil", resetHtml);
             res.json({ message: 'Email de recuperação enviado.' });
         });
     });
@@ -491,7 +524,7 @@ app.post('/api/reset-password-confirm', (req, res) => {
     const { token, newPassword } = req.body;
     db.get('SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?', [token, Date.now()], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
-        if (!row) return res.status(400).json({ error: "Link inválido." });
+        if (!row) return res.status(400).json({ error: "Link de recuperação inválido ou expirado." });
         db.run('UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?', [newPassword, row.id], (err) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: "Senha alterada com sucesso." });
@@ -506,20 +539,320 @@ app.get('/api/validate-signup-token/:token', (req, res) => {
     });
 });
 
-// GENERIC USER ROUTES (Standard CRUD - keeping abbreviated but should match previously provided logic)
+// GENERIC USER MIDDLEWARE (Mantidos)
 app.get('/api/banks', checkAuth, (req, res) => {
     db.all(`SELECT * FROM banks WHERE user_id = ?`, [req.userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json(rows.map(b => ({ ...b, active: Boolean(b.active) })));
+        res.json(rows.map(b => ({
+            id: b.id,
+            name: b.name,
+            accountNumber: b.account_number,
+            nickname: b.nickname,
+            logo: b.logo,
+            active: Boolean(b.active),
+            balance: b.balance
+        })));
     });
 });
-// ... [Include other standard routes: POST/PUT/DELETE banks, categories, transactions, forecasts, imports, rules] ...
-// Re-inserting core logic for Reports since it was specifically modified in previous steps
+
+app.post('/api/banks', checkAuth, (req, res) => {
+    const { name, accountNumber, nickname, logo } = req.body;
+    db.run(
+        `INSERT INTO banks (user_id, name, account_number, nickname, logo, active, balance) VALUES (?, ?, ?, ?, ?, 1, 0)`,
+        [req.userId, name, accountNumber, nickname, logo],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ id: this.lastID, name, accountNumber, nickname, logo, active: true, balance: 0 });
+        }
+    );
+});
+
+app.put('/api/banks/:id', checkAuth, (req, res) => {
+    const { nickname, accountNumber, active } = req.body;
+    db.run(
+        `UPDATE banks SET nickname = ?, account_number = ?, active = ? WHERE id = ? AND user_id = ?`,
+        [nickname, accountNumber, active ? 1 : 0, req.params.id, req.userId],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ success: true });
+        }
+    );
+});
+
+app.delete('/api/banks/:id', checkAuth, (req, res) => {
+    db.run(`DELETE FROM banks WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ deleted: this.changes });
+    });
+});
+
+app.get('/api/categories', checkAuth, (req, res) => {
+    db.all(`SELECT * FROM categories WHERE user_id = ?`, [req.userId], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+app.post('/api/categories', checkAuth, (req, res) => {
+    const { name, type } = req.body;
+    db.run(
+        `INSERT INTO categories (user_id, name, type) VALUES (?, ?, ?)`,
+        [req.userId, name, type],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ id: this.lastID, name, type });
+        }
+    );
+});
+
+app.delete('/api/categories/:id', checkAuth, (req, res) => {
+    db.run(`DELETE FROM categories WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ deleted: this.changes });
+    });
+});
+
+app.get('/api/keyword-rules', checkAuth, (req, res) => {
+    db.all(`SELECT * FROM keyword_rules WHERE user_id = ?`, [req.userId], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows.map(r => ({
+            id: r.id,
+            keyword: r.keyword,
+            type: r.type,
+            categoryId: r.category_id
+        })));
+    });
+});
+
+app.post('/api/keyword-rules', checkAuth, (req, res) => {
+    const { keyword, type, categoryId } = req.body;
+    db.run(
+        `INSERT INTO keyword_rules (user_id, keyword, type, category_id) VALUES (?, ?, ?, ?)`,
+        [req.userId, keyword, type, categoryId],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ id: this.lastID, keyword, type, categoryId });
+        }
+    );
+});
+
+app.delete('/api/keyword-rules/:id', checkAuth, (req, res) => {
+    db.run(`DELETE FROM keyword_rules WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ deleted: this.changes });
+    });
+});
+
+app.get('/api/transactions', checkAuth, (req, res) => {
+  db.all(`SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC`, [req.userId], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const transactions = rows.map(t => ({
+      id: t.id,
+      date: t.date,
+      description: t.description,
+      value: t.value,
+      type: t.type,
+      categoryId: t.category_id,
+      bankId: t.bank_id,
+      reconciled: Boolean(t.reconciled),
+      ofxImportId: t.ofx_import_id
+    }));
+    res.json(transactions);
+  });
+});
+
+app.post('/api/transactions', checkAuth, (req, res) => {
+  const { date, description, value, type, categoryId, bankId, reconciled, ofxImportId } = req.body;
+  db.run(
+    `INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, reconciled, ofx_import_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [req.userId, date, description, value, type, category_id, bankId, reconciled ? 1 : 0, ofxImportId || null],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: this.lastID, ...req.body });
+    }
+  );
+});
+
+app.put('/api/transactions/:id', checkAuth, (req, res) => {
+  const { date, description, value, type, categoryId, bankId, reconciled } = req.body;
+  let query = `UPDATE transactions SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ?`;
+  const params = [date, description, value, type, category_id, bankId];
+  if (reconciled !== undefined) {
+      query += `, reconciled = ?`;
+      params.push(reconciled ? 1 : 0);
+  }
+  query += ` WHERE id = ? AND user_id = ?`;
+  params.push(req.params.id, req.userId);
+  db.run(query, params, function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
+    }
+  );
+});
+
+app.delete('/api/transactions/:id', checkAuth, (req, res) => {
+    db.run(`DELETE FROM transactions WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ deleted: this.changes });
+    });
+});
+
+app.patch('/api/transactions/:id/reconcile', checkAuth, (req, res) => {
+    const { reconciled } = req.body;
+    db.run(`UPDATE transactions SET reconciled = ? WHERE id = ? AND user_id = ?`, [reconciled ? 1 : 0, req.params.id, req.userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ updated: this.changes });
+    });
+});
+
+app.patch('/api/transactions/batch-update', checkAuth, (req, res) => {
+    const { transactionIds, categoryId } = req.body;
+    if (!transactionIds || !Array.isArray(transactionIds) || transactionIds.length === 0) {
+        return res.status(400).json({ error: "Invalid transaction IDs" });
+    }
+    const placeholders = transactionIds.map(() => '?').join(',');
+    const sql = `UPDATE transactions SET category_id = ?, reconciled = 1 WHERE id IN (${placeholders}) AND user_id = ?`;
+    const params = [categoryId, ...transactionIds, req.userId];
+    db.run(sql, params, function(err) {
+        if(err) return res.status(500).json({ error: err.message });
+        res.json({ updated: this.changes });
+    });
+});
+
+app.get('/api/ofx-imports', checkAuth, (req, res) => {
+    db.all(`SELECT * FROM ofx_imports WHERE user_id = ? ORDER BY import_date DESC`, [req.userId], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows.map(r => ({
+            id: r.id,
+            fileName: r.file_name,
+            importDate: r.import_date,
+            bankId: r.bank_id,
+            transactionCount: r.transaction_count
+        })));
+    });
+});
+
+app.post('/api/ofx-imports', checkAuth, (req, res) => {
+    const { fileName, importDate, bankId, transactionCount, content } = req.body;
+    db.run(
+        `INSERT INTO ofx_imports (user_id, file_name, import_date, bank_id, transaction_count, content) VALUES (?, ?, ?, ?, ?, ?)`,
+        [req.userId, fileName, importDate, bankId, transactionCount, content || ''],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ id: this.lastID });
+        }
+    );
+});
+
+app.delete('/api/ofx-imports/:id', checkAuth, (req, res) => {
+    const importId = req.params.id;
+    const userId = req.userId;
+    db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        db.run(`DELETE FROM transactions WHERE ofx_import_id = ? AND user_id = ?`, [importId, userId]);
+        db.run(`DELETE FROM ofx_imports WHERE id = ? AND user_id = ?`, [importId, userId], function(err) {
+            if (err) {
+                db.run('ROLLBACK');
+                return res.status(500).json({ error: err.message });
+            }
+            db.run('COMMIT');
+            res.json({ message: 'Import and transactions deleted' });
+        });
+    });
+});
+
+app.get('/api/forecasts', checkAuth, (req, res) => {
+    db.all(`SELECT * FROM forecasts WHERE user_id = ? ORDER BY date ASC`, [req.userId], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows.map(f => ({
+            id: f.id,
+            date: f.date,
+            description: f.description,
+            value: f.value,
+            type: f.type,
+            categoryId: f.category_id,
+            bankId: f.bank_id,
+            realized: Boolean(f.realized),
+            installmentCurrent: f.installment_current,
+            installmentTotal: f.installment_total,
+            groupId: f.group_id
+        })));
+    });
+});
+
+app.post('/api/forecasts', checkAuth, (req, res) => {
+    const { date, description, value, type, categoryId, bankId, installmentCurrent, installmentTotal, groupId } = req.body;
+    db.run(
+        `INSERT INTO forecasts (user_id, date, description, value, type, category_id, bank_id, realized, installment_current, installment_total, group_id) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+        [req.userId, date, description, value, type, category_id, bankId, installmentCurrent, installmentTotal, groupId],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ id: this.lastID });
+        }
+    );
+});
+
+app.put('/api/forecasts/:id', checkAuth, (req, res) => {
+    const { date, description, value, type, categoryId, bankId } = req.body;
+    db.run(
+        `UPDATE forecasts SET date = ?, description = ?, value = ?, type = ?, category_id = ?, bank_id = ? WHERE id = ? AND user_id = ?`,
+        [date, description, value, type, category_id, bankId, req.params.id, req.userId],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ success: true });
+        }
+    );
+});
+
+app.delete('/api/forecasts/:id', checkAuth, (req, res) => {
+    const { mode } = req.query; 
+    const id = req.params.id;
+    const userId = req.userId;
+
+    if (!mode || mode === 'single') {
+        db.run(`DELETE FROM forecasts WHERE id = ? AND user_id = ?`, [id, userId], function(err) {
+            if(err) return res.status(500).json({error: err.message});
+            res.json({ deleted: this.changes });
+        });
+    } else {
+        db.get(`SELECT group_id, date FROM forecasts WHERE id = ? AND user_id = ?`, [id, userId], (err, row) => {
+            if (err) return res.status(500).json({error: err.message});
+            if (!row || !row.group_id) {
+                db.run(`DELETE FROM forecasts WHERE id = ? AND user_id = ?`, [id, userId]);
+                return res.json({ deleted: 1 });
+            }
+
+            if (mode === 'all') {
+                db.run(`DELETE FROM forecasts WHERE group_id = ? AND user_id = ?`, [row.group_id, userId], function(err) {
+                    if(err) return res.status(500).json({error: err.message});
+                    res.json({ deleted: this.changes });
+                });
+            } else if (mode === 'future') {
+                db.run(`DELETE FROM forecasts WHERE group_id = ? AND date >= ? AND user_id = ?`, [row.group_id, row.date, userId], function(err) {
+                     if(err) return res.status(500).json({error: err.message});
+                     res.json({ deleted: this.changes });
+                });
+            }
+        });
+    }
+});
+
+app.patch('/api/forecasts/:id/realize', checkAuth, (req, res) => {
+     db.run(`UPDATE forecasts SET realized = 1 WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], function(err) {
+        if(err) return res.status(500).json({error: err.message});
+        res.json({ updated: this.changes });
+    });
+});
+
+// Reporting routes follow...
 app.get('/api/reports/cash-flow', checkAuth, async (req, res) => {
+    // ... existing report logic ...
     const { year, month } = req.query;
     const y = parseInt(year);
     const m = month ? parseInt(month) : null;
     const userId = req.userId;
+
     try {
         let startDate, endDate;
         if (m !== null) {
@@ -529,47 +862,376 @@ app.get('/api/reports/cash-flow', checkAuth, async (req, res) => {
             startDate = new Date(y, 0, 1).toISOString().split('T')[0];
             endDate = new Date(y + 1, 0, 1).toISOString().split('T')[0];
         }
+
         const balancePromise = new Promise((resolve, reject) => {
-            db.get(`SELECT SUM(CASE WHEN type = 'credito' THEN value ELSE -value END) as balance FROM transactions WHERE user_id = ? AND date < ?`, [userId, startDate], (err, row) => {
-                if (err) reject(err); else resolve(row?.balance || 0);
-            });
+            db.get(
+                `SELECT SUM(CASE WHEN type = 'credito' THEN value ELSE -value END) as balance 
+                 FROM transactions WHERE user_id = ? AND date < ?`,
+                [userId, startDate],
+                (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row?.balance || 0);
+                }
+            );
         });
+
         const startBalance = await balancePromise;
-        db.all(`SELECT t.*, c.name as category_name FROM transactions t LEFT JOIN categories c ON t.category_id = c.id WHERE t.user_id = ? AND t.date >= ? AND t.date < ?`, [userId, startDate, endDate], (err, rows) => {
-            if (err) return res.status(500).json({ error: err.message });
-            const totalReceitas = rows.filter(r => r.type === 'credito').reduce((sum, r) => sum + r.value, 0);
-            const totalDespesas = rows.filter(r => r.type === 'debito').reduce((sum, r) => sum + r.value, 0);
-            const receitasCat = {};
-            const despesasCat = {};
-            rows.forEach(r => {
-                const catName = r.category_name || 'Sem Categoria';
-                if (r.type === 'credito') receitasCat[catName] = (receitasCat[catName] || 0) + r.value;
-                else despesasCat[catName] = (despesasCat[catName] || 0) + r.value;
-            });
-            res.json({
-                startBalance, totalReceitas, totalDespesas,
-                endBalance: startBalance + totalReceitas - totalDespesas,
-                receitasByCategory: Object.entries(receitasCat).map(([name, value]) => ({ name, value })),
-                despesasByCategory: Object.entries(despesasCat).map(([name, value]) => ({ name, value }))
-            });
-        });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+
+        db.all(
+            `SELECT t.*, c.name as category_name, c.type as category_type
+             FROM transactions t
+             LEFT JOIN categories c ON t.category_id = c.id
+             WHERE t.user_id = ? AND t.date >= ? AND t.date < ?`,
+            [userId, startDate, endDate],
+            (err, rows) => {
+                if (err) return res.status(500).json({ error: err.message });
+
+                const totalReceitas = rows.filter(r => r.type === 'credito').reduce((sum, r) => sum + r.value, 0);
+                const totalDespesas = rows.filter(r => r.type === 'debito').reduce((sum, r) => sum + r.value, 0);
+                
+                const receitasCat = {};
+                const despesasCat = {};
+
+                rows.forEach(r => {
+                    const catName = r.category_name || 'Sem Categoria';
+                    if (r.type === 'credito') {
+                        receitasCat[catName] = (receitasCat[catName] || 0) + r.value;
+                    } else {
+                        despesasCat[catName] = (despesasCat[catName] || 0) + r.value;
+                    }
+                });
+
+                res.json({
+                    startBalance,
+                    totalReceitas,
+                    totalDespesas,
+                    endBalance: startBalance + totalReceitas - totalDespesas,
+                    receitasByCategory: Object.entries(receitasCat).map(([name, value]) => ({ name, value })),
+                    despesasByCategory: Object.entries(despesasCat).map(([name, value]) => ({ name, value }))
+                });
+            }
+        );
+
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 app.get('/api/reports/daily-flow', checkAuth, (req, res) => {
     const { startDate, endDate } = req.query;
     const userId = req.userId;
-    if (!startDate || !endDate) return res.status(400).json({ error: 'Dates required' });
-    db.all(`SELECT date, type, SUM(value) as total FROM transactions WHERE user_id = ? AND date BETWEEN ? AND ? GROUP BY date, type ORDER BY date ASC`, [userId, startDate, endDate], (err, rows) => {
+
+    if (!startDate || !endDate) return res.status(400).json({ error: 'Start and End date required' });
+
+    db.all(
+        `SELECT date, type, SUM(value) as total 
+         FROM transactions 
+         WHERE user_id = ? AND date BETWEEN ? AND ? 
+         GROUP BY date, type 
+         ORDER BY date ASC`,
+        [userId, startDate, endDate],
+        (err, rows) => {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            // Format for chart: [{ date: '...', income: 100, expense: 50, net: 50 }, ...]
+            const grouped = {};
+            rows.forEach(row => {
+                if (!grouped[row.date]) grouped[row.date] = { date: row.date, income: 0, expense: 0, net: 0 };
+                if (row.type === 'credito') grouped[row.date].income += row.total;
+                else grouped[row.date].expense += row.total;
+                grouped[row.date].net = grouped[row.date].income - grouped[row.date].expense;
+            });
+            
+            res.json(Object.values(grouped));
+        }
+    );
+});
+
+app.get('/api/reports/dre', checkAuth, (req, res) => {
+    // ... existing report logic ...
+    const { year, month } = req.query;
+    const userId = req.userId;
+    const y = parseInt(year);
+    const m = month ? parseInt(month) : null;
+
+    let query = `SELECT t.*, c.name as category_name, c.type as category_type 
+                 FROM transactions t 
+                 LEFT JOIN categories c ON t.category_id = c.id 
+                 WHERE t.user_id = ? AND strftime('%Y', t.date) = ?`;
+    
+    const params = [userId, String(y)];
+
+    if (m !== null) {
+        query += ` AND strftime('%m', t.date) = ?`;
+        params.push(String(m + 1).padStart(2, '0'));
+    }
+
+    db.all(query, params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        const grouped = {};
-        rows.forEach(row => {
-            if (!grouped[row.date]) grouped[row.date] = { date: row.date, income: 0, expense: 0, net: 0 };
-            if (row.type === 'credito') grouped[row.date].income += row.total;
-            else grouped[row.date].expense += row.total;
-            grouped[row.date].net = grouped[row.date].income - grouped[row.date].expense;
+
+        let dre = {
+            receitaBruta: 0,
+            deducoes: 0,
+            cmv: 0,
+            despesasOperacionais: 0,
+            resultadoFinanceiro: 0,
+            receitaNaoOperacional: 0,
+            despesaNaoOperacional: 0,
+            impostos: 0 
+        };
+
+        rows.forEach(t => {
+            const cat = (t.category_name || '').toLowerCase();
+            const val = t.value;
+            const isCredit = t.type === 'credito';
+            
+            if (cat.includes('transferências internas') || 
+                cat.includes('aportes de sócios') || 
+                cat.includes('distribuição de lucros') ||
+                cat.includes('retirada de sócios')) {
+                return;
+            }
+
+            if (cat.includes('vendas de mercadorias') || 
+                cat.includes('prestação de serviços') || 
+                cat.includes('comissões recebidas') ||
+                cat.includes('receita de aluguel') ||
+                cat.includes('outras receitas operacionais')) {
+                 if (isCredit) dre.receitaBruta += val;
+            }
+            else if (cat.includes('impostos e taxas') || 
+                     cat.includes('impostos sobre vendas') ||
+                     cat.includes('icms') || cat.includes('iss') || cat.includes('das') ||
+                     cat.includes('devoluções de vendas') ||
+                     cat.includes('descontos concedidos')) {
+                 if (!isCredit) dre.deducoes += val;
+            }
+            else if (cat.includes('compra de mercadorias') || 
+                     cat.includes('matéria-prima') || 
+                     cat.includes('fretes e transportes') || 
+                     cat.includes('custos diretos')) {
+                 if (!isCredit) dre.cmv += val;
+            }
+            else if (cat.includes('receita financeira') || 
+                     cat.includes('devoluções de despesas') || 
+                     cat.includes('reembolsos de clientes')) {
+                 if (isCredit) dre.resultadoFinanceiro += val;
+            }
+            else if (cat.includes('despesas financeiras') || 
+                     cat.includes('juros sobre empréstimos') || 
+                     cat.includes('multas') || 
+                     cat.includes('iof')) {
+                 if (!isCredit) dre.resultadoFinanceiro -= val;
+            }
+            else if (cat.includes('receitas não operacionais') || 
+                     cat.includes('venda de ativo')) {
+                 if (isCredit) dre.receitaNaoOperacional += val;
+            }
+            else if (cat.includes('despesas não operacionais') || 
+                     cat.includes('baixa de bens')) {
+                 if (!isCredit) dre.despesaNaoOperacional += val;
+            }
+            else if (cat.includes('irpj') || cat.includes('csll')) {
+                 if (!isCredit) dre.impostos += val;
+            }
+            else if (!isCredit) {
+                dre.despesasOperacionais += val;
+            }
         });
-        res.json(Object.values(grouped));
+
+        const receitaLiquida = dre.receitaBruta - dre.deducoes;
+        const resultadoBruto = receitaLiquida - dre.cmv;
+        const resultadoOperacional = resultadoBruto - dre.despesasOperacionais;
+        const resultadoNaoOperacionalTotal = dre.receitaNaoOperacional - dre.despesaNaoOperacional;
+        const resultadoAntesImpostos = resultadoOperacional + dre.resultadoFinanceiro + resultadoNaoOperacionalTotal;
+        const lucroLiquido = resultadoAntesImpostos - dre.impostos;
+
+        res.json({
+            receitaBruta: dre.receitaBruta,
+            deducoes: dre.deducoes,
+            receitaLiquida,
+            cmv: dre.cmv,
+            resultadoBruto,
+            despesasOperacionais: dre.despesasOperacionais,
+            resultadoOperacional,
+            resultadoFinanceiro: dre.resultadoFinanceiro,
+            resultadoNaoOperacional: resultadoNaoOperacionalTotal,
+            impostos: dre.impostos,
+            lucroLiquido,
+            resultadoAntesImpostos
+        });
+    });
+});
+
+app.get('/api/reports/analysis', checkAuth, (req, res) => {
+    // ... existing report logic ...
+    const { year, month } = req.query;
+    const userId = req.userId;
+    const y = parseInt(year);
+    const m = month ? parseInt(month) : null;
+
+    let query = `SELECT t.*, c.name as category_name, c.type as category_type 
+                 FROM transactions t 
+                 LEFT JOIN categories c ON t.category_id = c.id 
+                 WHERE t.user_id = ? AND strftime('%Y', t.date) = ?`;
+    
+    const params = [userId, String(y)];
+
+    if (m !== null) {
+        query += ` AND strftime('%m', t.date) = ?`;
+        params.push(String(m + 1).padStart(2, '0'));
+    }
+
+    db.all(query, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const receitas = {};
+        const despesas = {};
+        let totalReceitas = 0;
+        let totalDespesas = 0;
+
+        // DRE Logic to calculate KPIs
+        let dre = {
+            receitaBruta: 0,
+            deducoes: 0,
+            cmv: 0,
+            despesasOperacionais: 0,
+            resultadoFinanceiro: 0,
+            receitaNaoOperacional: 0,
+            despesaNaoOperacional: 0,
+            impostos: 0 
+        };
+
+        rows.forEach(r => {
+            const catName = r.category_name || 'Outros';
+            if (r.type === 'credito') {
+                receitas[catName] = (receitas[catName] || 0) + r.value;
+                totalReceitas += r.value;
+            } else {
+                despesas[catName] = (despesas[catName] || 0) + r.value;
+                totalDespesas += r.value;
+            }
+
+            // DRE Categorization
+            const cat = (r.category_name || '').toLowerCase();
+            const val = r.value;
+            const isCredit = r.type === 'credito';
+
+            if (cat.includes('transferências internas') || cat.includes('aportes de sócios') || cat.includes('distribuição de lucros')) return;
+
+            if (cat.includes('vendas de mercadorias') || cat.includes('prestação de serviços') || cat.includes('comissões recebidas') || cat.includes('receita de aluguel')) {
+                 if (isCredit) dre.receitaBruta += val;
+            }
+            else if (cat.includes('impostos e taxas') || cat.includes('icms') || cat.includes('iss') || cat.includes('das') || cat.includes('devoluções')) {
+                 if (!isCredit) dre.deducoes += val;
+            }
+            else if (cat.includes('compra de mercadorias') || cat.includes('matéria-prima') || cat.includes('fretes') || cat.includes('custos diretos')) {
+                 if (!isCredit) dre.cmv += val;
+            }
+            else if (cat.includes('receita financeira')) {
+                 if (isCredit) dre.resultadoFinanceiro += val;
+            }
+            else if (cat.includes('despesas financeiras') || cat.includes('juros')) {
+                 if (!isCredit) dre.resultadoFinanceiro -= val;
+            }
+            else if (cat.includes('receitas não operacionais')) {
+                 if (isCredit) dre.receitaNaoOperacional += val;
+            }
+            else if (cat.includes('despesas não operacionais')) {
+                 if (!isCredit) dre.despesaNaoOperacional += val;
+            }
+            else if (cat.includes('irpj') || cat.includes('csll')) {
+                 if (!isCredit) dre.impostos += val;
+            }
+            else if (!isCredit) {
+                dre.despesasOperacionais += val;
+            }
+        });
+
+        // KPI Calculations
+        const receitaLiquida = dre.receitaBruta - dre.deducoes;
+        const resultadoBruto = receitaLiquida - dre.cmv;
+        const resultadoOperacional = resultadoBruto - dre.despesasOperacionais;
+        const resultadoNaoOperacionalTotal = dre.receitaNaoOperacional - dre.despesaNaoOperacional;
+        const resultadoAntesImpostos = resultadoOperacional + dre.resultadoFinanceiro + resultadoNaoOperacionalTotal;
+        const lucroLiquido = resultadoAntesImpostos - dre.impostos;
+
+        // Percentages
+        const margemContribuicaoVal = receitaLiquida - dre.cmv;
+        const margemContribuicaoPct = receitaLiquida > 0 ? (margemContribuicaoVal / receitaLiquida) * 100 : 0;
+        const resultadoOperacionalPct = receitaLiquida > 0 ? (resultadoOperacional / receitaLiquida) * 100 : 0;
+        const resultadoLiquidoPct = receitaLiquida > 0 ? (lucroLiquido / receitaLiquida) * 100 : 0;
+
+        res.json({
+            receitas,
+            despesas,
+            totalReceitas,
+            totalDespesas,
+            kpis: {
+                margemContribuicaoPct,
+                resultadoOperacionalPct,
+                resultadoLiquidoPct
+            }
+        });
+    });
+});
+
+// NOVO ENDPOINT: RELATÓRIO DE PREVISÕES
+app.get('/api/reports/forecasts', checkAuth, (req, res) => {
+    const { year, month } = req.query;
+    const userId = req.userId;
+    const y = parseInt(year);
+    const m = month ? parseInt(month) : null;
+
+    let query = `SELECT f.*, c.name as category_name 
+                 FROM forecasts f
+                 LEFT JOIN categories c ON f.category_id = c.id
+                 WHERE f.user_id = ? AND strftime('%Y', f.date) = ?`;
+    
+    const params = [userId, String(y)];
+
+    if (m !== null) {
+        query += ` AND strftime('%m', f.date) = ?`;
+        params.push(String(m + 1).padStart(2, '0'));
+    }
+
+    db.all(query, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        let summary = {
+            predictedIncome: 0,
+            predictedExpense: 0,
+            realizedIncome: 0,
+            realizedExpense: 0,
+            pendingIncome: 0,
+            pendingExpense: 0
+        };
+
+        const items = rows.map(r => {
+            const val = r.value;
+            const isCredit = r.type === 'credito';
+            const isRealized = Boolean(r.realized);
+
+            // Total Predicted
+            if (isCredit) summary.predictedIncome += val;
+            else summary.predictedExpense += val;
+
+            // Realized vs Pending
+            if (isRealized) {
+                if (isCredit) summary.realizedIncome += val;
+                else summary.realizedExpense += val;
+            } else {
+                if (isCredit) summary.pendingIncome += val;
+                else summary.pendingExpense += val;
+            }
+
+            return {
+                ...r,
+                realized: isRealized
+            };
+        });
+
+        res.json({ summary, items });
     });
 });
 
@@ -579,5 +1241,6 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`DB Path: ${dbPath}`);
   console.log(`Logos served from: ${LOGO_DIR}`);
 });
