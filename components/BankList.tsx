@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bank } from '../types';
-import { Plus, Power, Edit2, X, Trash2, Archive } from 'lucide-react';
+import { Plus, Power, Edit2, X, Trash2, Archive, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 
 interface BankListProps {
   banks: Bank[];
@@ -9,11 +9,83 @@ interface BankListProps {
   onDeleteBank: (id: number) => void;
 }
 
+interface BankCardProps {
+    bank: Bank;
+    onEdit: (bank: Bank) => void;
+    onDelete: (id: number) => void;
+}
+
+const BankCard: React.FC<BankCardProps> = ({ bank, onEdit, onDelete }) => (
+    <div 
+        className={`group bg-surface rounded-xl p-6 border shadow-sm transition-all duration-200 relative overflow-hidden ${
+            bank.active 
+            ? 'border-slate-800 hover:border-slate-700 hover:shadow-lg hover:shadow-black/20' 
+            : 'border-slate-800/50 opacity-75 bg-slate-900/30'
+        }`}
+    >
+        {!bank.active && (
+            <div className="absolute top-0 right-0 bg-slate-800 text-slate-400 text-[10px] px-2 py-1 rounded-bl-lg border-b border-l border-slate-700 flex items-center gap-1">
+                <Archive size={10} /> Arquivada
+            </div>
+        )}
+
+        <div className="flex justify-between items-start mb-4">
+            <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-lg bg-white p-2 border flex items-center justify-center overflow-hidden ${bank.active ? 'border-slate-700 shadow-sm' : 'border-slate-300 grayscale opacity-70'}`}>
+                    <img src={bank.logo} alt={bank.name} className="max-w-full max-h-full object-contain" onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/40';
+                    }}/>
+                </div>
+                <div>
+                    <h3 className={`font-bold text-lg ${bank.active ? 'text-slate-200' : 'text-slate-400'}`}>{bank.name}</h3>
+                    <p className="text-xs text-slate-500">{bank.nickname || 'Conta Corrente'}</p>
+                </div>
+            </div>
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                <button 
+                    onClick={() => onEdit(bank)}
+                    className="p-1.5 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                    title="Editar"
+                >
+                    <Edit2 size={16} />
+                </button>
+                <button 
+                    onClick={() => onDelete(bank.id)}
+                    className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                    title="Excluir Definitivamente"
+                >
+                    <Trash2 size={16} />
+                </button>
+            </div>
+        </div>
+        
+        <div className="space-y-3 mb-4">
+            <div className="flex justify-between text-sm items-center p-2 bg-slate-900/50 rounded-lg border border-slate-800/50">
+                <span className="text-slate-500 text-xs uppercase font-semibold">Conta / Agência</span>
+                <span className="font-mono text-slate-300">{bank.accountNumber || '-'}</span>
+            </div>
+        </div>
+
+        <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
+            <span className="text-xs text-slate-500 font-semibold uppercase">Saldo Atual</span>
+            <span className={`font-bold text-lg ${
+                bank.balance >= 0 
+                    ? (bank.active ? 'text-emerald-500' : 'text-emerald-500/70') 
+                    : (bank.active ? 'text-rose-500' : 'text-rose-500/70')
+            }`}>
+                R$ {bank.balance.toFixed(2)}
+            </span>
+        </div>
+    </div>
+);
+
 const BankList: React.FC<BankListProps> = ({ banks, onUpdateBank, onAddBank, onDeleteBank }) => {
   const [editingBank, setEditingBank] = useState<Bank | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<{name: string, logo: string} | null>(null);
   const [newBankData, setNewBankData] = useState({ nickname: '', accountNumber: '' });
+  
+  const [showArchived, setShowArchived] = useState(false);
   
   // Dynamic list of available banks fetched from API
   const [availablePresets, setAvailablePresets] = useState<{id: number, name: string, logo: string}[]>([]);
@@ -64,95 +136,82 @@ const BankList: React.FC<BankListProps> = ({ banks, onUpdateBank, onAddBank, onD
       }
   };
 
+  // Separação das contas
+  const activeBanks = banks.filter(b => b.active);
+  const archivedBanks = banks.filter(b => !b.active);
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Contas Bancárias</h1>
-          <p className="text-slate-400">Gerencie suas contas e saldos</p>
+          <h1 className="text-2xl font-bold text-white">Minhas Contas</h1>
+          <p className="text-slate-400 text-sm">Gerencie seus bancos, carteiras e caixas físicos</p>
         </div>
         <button 
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-slate-900 rounded-lg hover:bg-primaryHover font-medium transition-colors shadow-sm shadow-emerald-900/20"
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-slate-900 rounded-lg hover:bg-primaryHover font-medium transition-colors shadow-lg shadow-emerald-900/20"
         >
           <Plus size={18} />
           Nova Conta
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {banks.length === 0 ? (
-            <div className="col-span-full py-10 text-center bg-surface rounded-xl border border-slate-800 border-dashed">
-                <p className="text-slate-400">Nenhuma conta bancária ativa.</p>
-                <p className="text-sm text-slate-500">Clique em "Nova Conta" para adicionar.</p>
+      {/* Active Banks Grid */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500"></div> Contas Ativas ({activeBanks.length})
+        </h2>
+        
+        {activeBanks.length === 0 ? (
+            <div className="py-12 text-center bg-surface rounded-xl border border-slate-800 border-dashed flex flex-col items-center gap-3">
+                <div className="p-3 bg-slate-800 rounded-full text-slate-500">
+                    <AlertCircle size={24} />
+                </div>
+                <div>
+                    <p className="text-slate-300 font-medium">Nenhuma conta ativa encontrada.</p>
+                    <p className="text-sm text-slate-500">Adicione uma nova conta ou reative uma arquivada.</p>
+                </div>
             </div>
         ) : (
-            banks.map((bank) => (
-            <div 
-                key={bank.id} 
-                className={`group bg-surface rounded-xl p-6 border shadow-sm transition-all duration-200 ${
-                    bank.active 
-                    ? 'border-slate-800 hover:border-slate-700' 
-                    : 'border-slate-800/50 opacity-60 hover:opacity-100'
-                }`}
-            >
-                <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-lg bg-white p-2 border flex items-center justify-center overflow-hidden ${bank.active ? 'border-slate-700' : 'border-slate-300 grayscale'}`}>
-                        <img src={bank.logo} alt={bank.name} className="max-w-full max-h-full object-contain" onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/40';
-                        }}/>
-                    </div>
-                    <div>
-                    <h3 className={`font-bold ${bank.active ? 'text-slate-200' : 'text-slate-400'}`}>{bank.name}</h3>
-                    {bank.active ? (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                            Ativo
-                        </span>
-                    ) : (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 border border-slate-600 flex items-center gap-1 w-fit">
-                            <Archive size={10} /> Arquivado
-                        </span>
-                    )}
-                    </div>
-                </div>
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                    <button 
-                        onClick={() => setEditingBank(bank)}
-                        className="p-1.5 text-slate-500 hover:text-primary hover:bg-primary/10 rounded"
-                    >
-                        <Edit2 size={16} />
-                    </button>
-                    <button 
-                        onClick={() => handleDeleteClick(bank.id)}
-                        className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded"
-                    >
-                        <Trash2 size={16} />
-                    </button>
-                </div>
-                </div>
-                
-                <div className="space-y-2 mb-4">
-                <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Agência/Conta</span>
-                    <span className="font-medium text-slate-300">{bank.accountNumber || '-'}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Apelido</span>
-                    <span className="font-medium text-slate-300">{bank.nickname || '-'}</span>
-                </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
-                    <span className="text-sm text-slate-500">Saldo Atual</span>
-                    <span className={`font-bold text-lg ${bank.balance >= 0 ? (bank.active ? 'text-emerald-500' : 'text-slate-400') : 'text-rose-500'}`}>
-                        R$ {bank.balance.toFixed(2)}
-                    </span>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {activeBanks.map(bank => (
+                    <BankCard 
+                        key={bank.id} 
+                        bank={bank} 
+                        onEdit={setEditingBank} 
+                        onDelete={handleDeleteClick} 
+                    />
+                ))}
             </div>
-            ))
         )}
       </div>
+
+      {/* Archived Banks Section */}
+      {archivedBanks.length > 0 && (
+          <div className="space-y-4 border-t border-slate-800 pt-6">
+              <button 
+                onClick={() => setShowArchived(!showArchived)}
+                className="flex items-center gap-2 text-slate-500 hover:text-slate-300 transition-colors text-sm font-medium w-full"
+              >
+                  {showArchived ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                  Contas Arquivadas ({archivedBanks.length})
+                  <div className="h-px bg-slate-800 flex-1 ml-2"></div>
+              </button>
+
+              {showArchived && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-2">
+                      {archivedBanks.map(bank => (
+                          <BankCard 
+                              key={bank.id} 
+                              bank={bank} 
+                              onEdit={setEditingBank} 
+                              onDelete={handleDeleteClick} 
+                          />
+                      ))}
+                  </div>
+              )}
+          </div>
+      )}
 
       {/* Add Bank Modal */}
       {isAddModalOpen && (
@@ -291,11 +350,12 @@ const BankList: React.FC<BankListProps> = ({ banks, onUpdateBank, onAddBank, onD
                     {editingBank.active ? 'Arquivar Conta' : 'Reativar Conta'}
                  </button>
               </div>
-              {!editingBank.active && (
-                  <p className="text-xs text-slate-500 text-center">
-                      Contas arquivadas não aparecem nas opções de lançamento, mas seu histórico é mantido.
-                  </p>
-              )}
+              
+              <p className="text-xs text-slate-500 text-center">
+                  {editingBank.active 
+                    ? "Contas arquivadas são ocultadas da lista principal, mas o histórico é mantido."
+                    : "Reativar a conta a tornará visível novamente para novos lançamentos."}
+              </p>
 
               <div className="pt-4 flex gap-3">
                 <button 
