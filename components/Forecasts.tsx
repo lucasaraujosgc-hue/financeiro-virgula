@@ -6,9 +6,10 @@ interface ForecastsProps {
   userId: number;
   banks: Bank[];
   categories: Category[];
+  onUpdate: () => void;
 }
 
-const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
+const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories, onUpdate }) => {
   const [forecasts, setForecasts] = useState<Forecast[]>([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -87,53 +88,58 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
     e.preventDefault();
     const value = Math.abs(Number(formData.value));
     
-    if (editingId) {
-         await fetch(`/api/forecasts/${editingId}`, {
-            method: 'PUT',
-            headers: getHeaders(),
-            body: JSON.stringify({
-                date: formData.date,
-                description: formData.description,
-                value: value,
-                type: formData.type,
-                categoryId: Number(formData.categoryId),
-                bankId: Number(formData.bankId)
-            })
-        });
-    } else {
-        const groupId = Date.now().toString(); 
-        const baseDate = new Date(formData.date);
-        
-        const installments = formData.isFixed ? 60 : Math.max(1, Math.floor(Number(formData.installments)));
-
-        for (let i = 0; i < installments; i++) {
-            const currentDate = new Date(baseDate);
-            currentDate.setMonth(baseDate.getMonth() + i);
-            
-            const payload = {
-                date: currentDate.toISOString().split('T')[0],
-                description: formData.description,
-                value: value,
-                type: formData.type,
-                categoryId: Number(formData.categoryId),
-                bankId: Number(formData.bankId),
-                installmentCurrent: formData.isFixed ? i + 1 : i + 1,
-                installmentTotal: formData.isFixed ? 0 : installments, 
-                groupId: (installments > 1 || formData.isFixed) ? groupId : null
-            };
-
-            await fetch('/api/forecasts', {
-                method: 'POST',
+    try {
+        if (editingId) {
+             await fetch(`/api/forecasts/${editingId}`, {
+                method: 'PUT',
                 headers: getHeaders(),
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    date: formData.date,
+                    description: formData.description,
+                    value: value,
+                    type: formData.type,
+                    categoryId: Number(formData.categoryId),
+                    bankId: Number(formData.bankId)
+                })
             });
-        }
-    }
+        } else {
+            const groupId = Date.now().toString(); 
+            const baseDate = new Date(formData.date);
+            
+            const installments = formData.isFixed ? 60 : Math.max(1, Math.floor(Number(formData.installments)));
 
-    setIsModalOpen(false);
-    setEditingId(null);
-    setFormData({ ...formData, description: '', value: '', installments: 1, isFixed: false });
-    fetchForecasts();
+            for (let i = 0; i < installments; i++) {
+                const currentDate = new Date(baseDate);
+                currentDate.setMonth(baseDate.getMonth() + i);
+                
+                const payload = {
+                    date: currentDate.toISOString().split('T')[0],
+                    description: formData.description,
+                    value: value,
+                    type: formData.type,
+                    categoryId: Number(formData.categoryId),
+                    bankId: Number(formData.bankId),
+                    installmentCurrent: formData.isFixed ? i + 1 : i + 1,
+                    installmentTotal: formData.isFixed ? 0 : installments, 
+                    groupId: (installments > 1 || formData.isFixed) ? groupId : null
+                };
+
+                await fetch('/api/forecasts', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify(payload)
+                });
+            }
+        }
+
+        setIsModalOpen(false);
+        setEditingId(null);
+        setFormData({ ...formData, description: '', value: '', installments: 1, isFixed: false });
+        await fetchForecasts();
+        onUpdate(); // Trigger global update
+    } catch (e) {
+        alert("Erro ao salvar previsão");
+    }
   };
 
   const handleDeleteClick = (id: number) => {
@@ -143,42 +149,52 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
   const confirmDelete = async (mode: 'single' | 'all' | 'future') => {
       if (!deleteModal.id) return;
       
-      await fetch(`/api/forecasts/${deleteModal.id}?mode=${mode}`, { 
-          method: 'DELETE',
-          headers: getHeaders()
-      });
-      setDeleteModal({ isOpen: false, id: null });
-      fetchForecasts();
+      try {
+          await fetch(`/api/forecasts/${deleteModal.id}?mode=${mode}`, { 
+              method: 'DELETE',
+              headers: getHeaders()
+          });
+          setDeleteModal({ isOpen: false, id: null });
+          await fetchForecasts();
+          onUpdate(); // Trigger global update
+      } catch (e) {
+          alert("Erro ao excluir");
+      }
   };
 
   const handleRealize = async (id: number) => {
       if(confirm('Confirmar realização desta previsão? Ela será movida para Lançamentos.')) {
-           await fetch(`/api/forecasts/${id}/realize`, { 
-               method: 'PATCH',
-               headers: getHeaders()
-            });
-           
-           const forecast = forecasts.find(f => f.id === id);
-           if (forecast) {
-               const descSuffix = forecast.installmentTotal 
-                  ? ` (${forecast.installmentCurrent}/${forecast.installmentTotal})` 
-                  : (forecast.groupId ? ' (Recorrente)' : '');
+           try {
+               await fetch(`/api/forecasts/${id}/realize`, { 
+                   method: 'PATCH',
+                   headers: getHeaders()
+                });
+               
+               const forecast = forecasts.find(f => f.id === id);
+               if (forecast) {
+                   const descSuffix = forecast.installmentTotal 
+                      ? ` (${forecast.installmentCurrent}/${forecast.installmentTotal})` 
+                      : (forecast.groupId ? ' (Recorrente)' : '');
 
-               await fetch('/api/transactions', {
-                   method: 'POST',
-                   headers: getHeaders(),
-                   body: JSON.stringify({
-                       date: forecast.date,
-                       description: forecast.description + descSuffix,
-                       value: forecast.value,
-                       type: forecast.type,
-                       categoryId: forecast.categoryId,
-                       bankId: forecast.bankId,
-                       reconciled: false
-                   })
-               });
+                   await fetch('/api/transactions', {
+                       method: 'POST',
+                       headers: getHeaders(),
+                       body: JSON.stringify({
+                           date: forecast.date,
+                           description: forecast.description + descSuffix,
+                           value: forecast.value,
+                           type: forecast.type,
+                           categoryId: forecast.categoryId,
+                           bankId: forecast.bankId,
+                           reconciled: false
+                       })
+                   });
+               }
+               await fetchForecasts();
+               onUpdate(); // Trigger global update
+           } catch (e) {
+               alert("Erro ao efetivar");
            }
-           fetchForecasts();
       }
   };
 
@@ -354,10 +370,10 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
        {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-          <div className="relative bg-surface border border-slate-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+          <div className="relative bg-surface border border-slate-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="px-6 py-4 border-b border-slate-800 bg-slate-950 flex justify-between items-center">
               <h3 className="font-semibold text-white">{editingId ? 'Editar Previsão' : 'Nova Previsão'}</h3>
-              <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-slate-400"/></button>
+              <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-slate-400 hover:text-white"/></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -368,8 +384,8 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
                             value={formData.type}
                             onChange={e => setFormData({...formData, type: e.target.value as TransactionType})}
                          >
-                             <option value={TransactionType.DEBIT}>Despesa</option>
-                             <option value={TransactionType.CREDIT}>Receita</option>
+                             <option value={TransactionType.DEBIT}>Despesa (-)</option>
+                             <option value={TransactionType.CREDIT}>Receita (+)</option>
                          </select>
                      </div>
                      <div>
@@ -395,7 +411,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories }) => {
                      <label className="text-sm text-slate-400 font-medium">Valor</label>
                      <input 
                         type="number" step="0.01" required
-                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 font-bold text-white outline-none focus:border-primary"
+                        className={`w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 font-bold outline-none focus:border-primary ${formData.type === TransactionType.DEBIT ? 'text-rose-500' : 'text-emerald-500'}`}
                         value={formData.value}
                         onChange={e => setFormData({...formData, value: e.target.value})}
                      />

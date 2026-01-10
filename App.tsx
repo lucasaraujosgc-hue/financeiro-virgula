@@ -334,7 +334,7 @@ function App() {
       case 'banks': return <BankList banks={banks} onUpdateBank={handleUpdateBank} onAddBank={handleAddBank} onDeleteBank={handleDeleteBank} />;
       case 'categories': return <Categories categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} />;
       case 'reports': return <Reports transactions={transactions} categories={categories} />;
-      case 'forecasts': return <Forecasts userId={user.id} banks={activeBanks} categories={categories} />;
+      case 'forecasts': return <Forecasts userId={user.id} banks={activeBanks} categories={categories} onUpdate={fetchInitialData} />;
       case 'tutorial': return <Tutorial />;
       default: return <Dashboard userId={user.id} transactions={transactions} banks={activeBanks} forecasts={forecasts} categories={categories} onRefresh={fetchInitialData} />;
     }

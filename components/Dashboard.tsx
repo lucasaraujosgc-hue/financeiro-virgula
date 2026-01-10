@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Transaction, TransactionType, Bank, Forecast, Category, CategoryType } from '../types';
 import { ArrowUpCircle, ArrowDownCircle, Wallet, AlertCircle, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface DashboardProps {
   userId: number;
@@ -285,17 +285,28 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
   const reconciledCount = transactions.filter(t => t.reconciled).length;
   const pendingCount = transactions.filter(t => !t.reconciled).length;
 
-  const chartData = transactions.slice(0, 15).reverse().map(t => ({
-    name: t.date.split('-').slice(1).join('/'),
-    amount: t.type === TransactionType.CREDIT ? t.value : -t.value,
-    balance: 0 
-  }));
+  // Chart Data Preparation: Group transactions by day for Income vs Expense
+  const getLastDaysTransactions = () => {
+      // Get transactions from current view month
+      const dailyData: Record<string, { name: string, Receita: number, Despesa: number }> = {};
+      
+      // Initialize with empty days if needed, but for now just aggregating existing data
+      currentMonthTransactions.forEach(t => {
+          const day = t.date.split('-')[2];
+          if (!dailyData[day]) {
+              dailyData[day] = { name: day, Receita: 0, Despesa: 0 };
+          }
+          if (t.type === TransactionType.CREDIT) {
+              dailyData[day].Receita += t.value;
+          } else {
+              dailyData[day].Despesa += t.value;
+          }
+      });
 
-  let runningBalance = totalBalance - (chartData.reduce((acc, curr) => acc + curr.amount, 0)); 
-  const processedChartData = chartData.map(d => {
-    runningBalance += d.amount;
-    return { ...d, balance: runningBalance };
-  });
+      return Object.values(dailyData).sort((a,b) => parseInt(a.name) - parseInt(b.name));
+  };
+
+  const barChartData = getLastDaysTransactions();
 
   return (
     <div className="space-y-6">
@@ -430,8 +441,16 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {banks.map(bank => {
                     const bankPendingForecasts = allPendingForecasts.filter(f => f.bankId === bank.id);
-                    const pendingIncome = bankPendingForecasts.filter(f => f.type === TransactionType.CREDIT).reduce((a,b) => a + b.value, 0);
-                    const pendingExpense = bankPendingForecasts.filter(f => f.type === TransactionType.DEBIT).reduce((a,b) => a + b.value, 0);
+                    
+                    // Correct calculation logic considering types might vary slightly or be consistent
+                    const pendingIncome = bankPendingForecasts
+                        .filter(f => f.type === TransactionType.CREDIT || f.type === 'credito')
+                        .reduce((a,b) => a + b.value, 0);
+                    
+                    const pendingExpense = bankPendingForecasts
+                        .filter(f => f.type === TransactionType.DEBIT || f.type === 'debito')
+                        .reduce((a,b) => a + b.value, 0);
+                    
                     const pendingTotal = pendingIncome - pendingExpense;
                     const projectedBalance = bank.balance + pendingTotal;
 
@@ -482,33 +501,31 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
         <div className="space-y-6">
              {/* Small Chart */}
              <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
-                <h3 className="font-semibold text-slate-200 mb-4 text-sm">Evolução do Saldo</h3>
+                <h3 className="font-semibold text-slate-200 mb-4 text-sm">Receita x Despesa (Diário)</h3>
                 <div className="h-40 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={processedChartData}>
-                        <defs>
-                        <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                        </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                        <XAxis hide dataKey="name" />
-                        <YAxis hide domain={['auto', 'auto']} />
-                        <Tooltip 
-                            contentStyle={{backgroundColor: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b', color: '#f8fafc', fontSize: '12px'}}
-                            itemStyle={{color: '#10b981'}}
-                        />
-                        <Area 
-                        type="monotone" 
-                        dataKey="balance" 
-                        stroke="#10b981" 
-                        strokeWidth={2}
-                        fillOpacity={1} 
-                        fill="url(#colorBalance)" 
-                        />
-                    </AreaChart>
-                    </ResponsiveContainer>
+                    {barChartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={barChartData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                            <XAxis 
+                                dataKey="name" 
+                                tick={{fill: '#94a3b8', fontSize: 10}} 
+                                interval={0}
+                            />
+                            <YAxis hide />
+                            <Tooltip 
+                                contentStyle={{backgroundColor: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b', color: '#f8fafc', fontSize: '12px'}}
+                                cursor={{fill: '#1e293b', opacity: 0.3}}
+                            />
+                            <Bar dataKey="Receita" fill="#10b981" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="Despesa" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="h-full flex items-center justify-center text-xs text-slate-500">
+                            Sem lançamentos neste mês
+                        </div>
+                    )}
                 </div>
              </div>
 
