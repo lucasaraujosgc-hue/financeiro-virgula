@@ -442,16 +442,22 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
                 {banks.map(bank => {
                     const bankPendingForecasts = allPendingForecasts.filter(f => f.bankId === bank.id);
                     
-                    // Correct calculation logic considering types might vary slightly or be consistent
-                    const pendingIncome = bankPendingForecasts
-                        .filter(f => f.type === TransactionType.CREDIT || f.type === 'credito')
-                        .reduce((a,b) => a + b.value, 0);
+                    // Cálculo do total pendente (Receita - Despesa) de forma robusta ignorando case
+                    const pendingTotal = bankPendingForecasts.reduce((acc, f) => {
+                        const val = Number(f.value);
+                        const type = String(f.type).toLowerCase();
+                        
+                        // Check for credit (Receitas)
+                        if (type.includes('credit') || type.includes('crédito') || type.includes('credito') || type.includes('receita')) {
+                            return acc + val;
+                        }
+                        // Check for debit (Despesas)
+                        if (type.includes('debit') || type.includes('débito') || type.includes('debito') || type.includes('despesa')) {
+                            return acc - val;
+                        }
+                        return acc;
+                    }, 0);
                     
-                    const pendingExpense = bankPendingForecasts
-                        .filter(f => f.type === TransactionType.DEBIT || f.type === 'debito')
-                        .reduce((a,b) => a + b.value, 0);
-                    
-                    const pendingTotal = pendingIncome - pendingExpense;
                     const projectedBalance = bank.balance + pendingTotal;
 
                     return (
