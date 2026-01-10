@@ -86,6 +86,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
           const transactionsRaw = content.split('<STMTTRN>');
           const start = importConfig.startDate ? new Date(importConfig.startDate) : null;
           const end = importConfig.endDate ? new Date(importConfig.endDate) : null;
+          const currentBankId = Number(importConfig.bankId);
 
           const parsedTransactions: any[] = [];
           let ignored = 0;
@@ -112,7 +113,10 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
                 let matchedCategoryId = 0;
                 for (const rule of keywordRules) {
                     if (rule.type === type) {
-                        if (description.toLowerCase().includes(rule.keyword.toLowerCase())) {
+                        // Check if rule applies to this bank (or globally)
+                        const bankMatch = !rule.bankId || rule.bankId === currentBankId;
+                        
+                        if (bankMatch && description.toLowerCase().includes(rule.keyword.toLowerCase())) {
                             matchedCategoryId = rule.categoryId;
                             break;
                         }
@@ -124,7 +128,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
                     description: description,
                     value: Math.abs(rawValue),
                     type: type,
-                    bankId: Number(importConfig.bankId),
+                    bankId: currentBankId,
                     categoryId: matchedCategoryId,
                     reconciled: matchedCategoryId > 0
                 });
@@ -142,7 +146,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
           setProcessingStatus('Verificando duplicidades...');
           
           // Filter existing transactions for this bank
-          const existingBankTransactions = transactions.filter(t => t.bankId === Number(importConfig.bankId));
+          const existingBankTransactions = transactions.filter(t => t.bankId === currentBankId);
           
           const newConflicts: ConflictingTransaction[] = [];
           const newClean: any[] = [];

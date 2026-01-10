@@ -138,7 +138,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
             })
         });
 
-        onRefresh();
+        await onRefresh();
         setRealizeModal({ isOpen: false, forecast: null, date: '' });
         // Close parent modals if empty
         if (overdueForecasts.length <= 1) setIsOverdueModalOpen(false);
@@ -156,7 +156,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
             method: 'DELETE',
             headers: getHeaders()
           });
-          onRefresh();
+          await onRefresh();
           if (overdueForecasts.length <= 1) setIsOverdueModalOpen(false);
       } catch (e) {
           alert("Erro ao excluir.");
@@ -233,7 +233,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
           }
 
           setIsModalOpen(false);
-          onRefresh();
+          await onRefresh();
       } catch (error) {
           alert("Erro ao salvar");
           console.error(error);

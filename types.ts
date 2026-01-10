@@ -29,6 +29,7 @@ export interface KeywordRule {
   keyword: string;
   type: TransactionType;
   categoryId: number;
+  bankId?: number | null; // Adicionado para vincular a banco específico
 }
 
 export interface OFXImport {

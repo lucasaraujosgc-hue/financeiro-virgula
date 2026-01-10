@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 
 // --- CONFIGURAÇÃO DE DIRETÓRIOS ---
 const __filename = fileURLToPath(import.meta.url);
@@ -328,8 +329,13 @@ db.serialize(() => {
     keyword TEXT,
     type TEXT,
     category_id INTEGER,
+    bank_id INTEGER,
     FOREIGN KEY(user_id) REFERENCES users(id)
-  )`);
+  )`, (err) => {
+      if (!err) {
+          ensureColumn('keyword_rules', 'bank_id', 'INTEGER');
+      }
+  });
 });
 
 // --- PUBLIC ROUTES (For Frontend Selection) ---
@@ -577,9 +583,20 @@ app.post('/api/login', (req, res) => {
           role: 'admin'
       });
   }
-  db.get(`SELECT * FROM users WHERE email = ? AND password = ?`, [email, password], (err, row) => {
+  db.get(`SELECT * FROM users WHERE email = ?`, [email], async (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(401).json({ error: 'Credenciais inválidas.' });
+    
+    let isValid = false;
+    // Check if password is hashed (BCrypt)
+    if (row.password && row.password.startsWith('$2')) {
+        isValid = await bcrypt.compare(password, row.password);
+    } else {
+        // Fallback for legacy plain text passwords
+        isValid = row.password === password;
+    }
+
+    if (!isValid) return res.status(401).json({ error: 'Credenciais inválidas.' });
     res.json({ id: row.id, email: row.email, razaoSocial: row.razao_social, role: 'user' });
   });
 });
@@ -623,13 +640,15 @@ app.post('/api/request-signup', (req, res) => {
 
 app.post('/api/complete-signup', (req, res) => {
   const { token, password } = req.body;
-  db.get('SELECT * FROM pending_signups WHERE token = ?', [token], (err, pendingUser) => {
+  db.get('SELECT * FROM pending_signups WHERE token = ?', [token], async (err, pendingUser) => {
       if (err) return res.status(500).json({ error: err.message });
       if (!pendingUser) return res.status(400).json({ error: "Token inválido ou expirado." });
       
+      const hashedPassword = await bcrypt.hash(password, 10);
+
       db.run(
         `INSERT INTO users (email, password, cnpj, razao_social, phone) VALUES (?, ?, ?, ?, ?)`,
-        [pendingUser.email, password, pendingUser.cnpj, pendingUser.razao_social, pendingUser.phone],
+        [pendingUser.email, hashedPassword, pendingUser.cnpj, pendingUser.razao_social, pendingUser.phone],
         async function(err) {
           if (err) return res.status(500).json({ error: err.message });
           const newUserId = this.lastID;
@@ -689,10 +708,13 @@ app.post('/api/recover-password', (req, res) => {
 
 app.post('/api/reset-password-confirm', (req, res) => {
     const { token, newPassword } = req.body;
-    db.get('SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?', [token, Date.now()], (err, row) => {
+    db.get('SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?', [token, Date.now()], async (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!row) return res.status(400).json({ error: "Link de recuperação inválido ou expirado." });
-        db.run('UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?', [newPassword, row.id], (err) => {
+        
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        db.run('UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?', [hashedPassword, row.id], (err) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ message: "Senha alterada com sucesso." });
         });
@@ -786,19 +808,20 @@ app.get('/api/keyword-rules', checkAuth, (req, res) => {
             id: r.id,
             keyword: r.keyword,
             type: r.type,
-            categoryId: r.category_id
+            categoryId: r.category_id,
+            bankId: r.bank_id // Include bankId
         })));
     });
 });
 
 app.post('/api/keyword-rules', checkAuth, (req, res) => {
-    const { keyword, type, categoryId } = req.body;
+    const { keyword, type, categoryId, bankId } = req.body;
     db.run(
-        `INSERT INTO keyword_rules (user_id, keyword, type, category_id) VALUES (?, ?, ?, ?)`,
-        [req.userId, keyword, type, categoryId],
+        `INSERT INTO keyword_rules (user_id, keyword, type, category_id, bank_id) VALUES (?, ?, ?, ?, ?)`,
+        [req.userId, keyword, type, categoryId, bankId || null],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
-            res.json({ id: this.lastID, keyword, type, categoryId });
+            res.json({ id: this.lastID, keyword, type, categoryId, bankId });
         }
     );
 });
@@ -1012,6 +1035,7 @@ app.patch('/api/forecasts/:id/realize', checkAuth, (req, res) => {
     });
 });
 
+// ... reporting routes (mantidas) ...
 // Reporting routes follow...
 app.get('/api/reports/cash-flow', checkAuth, async (req, res) => {
     // ... existing report logic ...
