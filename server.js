@@ -197,6 +197,7 @@ const ensureColumn = (table, column, definition) => {
         if (!err && rows) {
             const hasColumn = rows.some(r => r.name === column);
             if (!hasColumn) {
+                console.log(`[MIGRATION] Adding column ${column} to table ${table}`);
                 db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
             }
         }
@@ -287,7 +288,11 @@ db.serialize(() => {
     content TEXT,
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`, (err) => {
-      if(!err) ensureColumn('ofx_imports', 'content', 'TEXT');
+      if(!err) {
+          ensureColumn('ofx_imports', 'content', 'TEXT');
+          ensureColumn('ofx_imports', 'transaction_count', 'INTEGER');
+          ensureColumn('ofx_imports', 'file_name', 'TEXT');
+      }
   });
 
   // 7. Transactions
@@ -320,7 +325,14 @@ db.serialize(() => {
     installment_total INTEGER,
     group_id TEXT,
     FOREIGN KEY(user_id) REFERENCES users(id)
-  )`);
+  )`, (err) => {
+      if(!err) {
+          ensureColumn('forecasts', 'installment_current', 'INTEGER');
+          ensureColumn('forecasts', 'installment_total', 'INTEGER');
+          ensureColumn('forecasts', 'group_id', 'TEXT');
+          ensureColumn('forecasts', 'realized', 'INTEGER DEFAULT 0');
+      }
+  });
 
   // 9. Keyword Rules
   db.run(`CREATE TABLE IF NOT EXISTS keyword_rules (
