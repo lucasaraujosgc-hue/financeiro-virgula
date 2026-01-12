@@ -75,11 +75,11 @@ function App() {
   }, [isAuthenticated, user]);
 
   // Derived state updates (Balances)
-  // CORRECTED: Balances should only include RECONCILED transactions
+  // REVERTED: Balances now include ALL transactions (Pending + Reconciled) based on user request.
   useEffect(() => {
     if (banks.length > 0) {
         const updatedBanks = banks.map(bank => {
-            const bankTxs = transactions.filter(t => t.bankId === bank.id && t.reconciled);
+            const bankTxs = transactions.filter(t => t.bankId === bank.id);
             const balance = bankTxs.reduce((acc, t) => {
                 const val = Number(t.value);
                 // Adjust string matching to be robust ('credito', 'credit', etc)

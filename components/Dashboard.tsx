@@ -107,8 +107,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
   const topIncomeCategories = getTopCategories(TransactionType.CREDIT);
   const topExpenseCategories = getTopCategories(TransactionType.DEBIT);
 
-  const allTimeIncome = transactions.filter(t => t.type === TransactionType.CREDIT && t.reconciled).reduce((acc, curr) => acc + curr.value, 0);
-  const allTimeExpense = transactions.filter(t => t.type === TransactionType.DEBIT && t.reconciled).reduce((acc, curr) => acc + curr.value, 0);
+  // GLOBAL BALANCE LOGIC: Sum of ALL transactions (Reconciled + Pending)
+  const allTimeIncome = transactions.filter(t => t.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
+  const allTimeExpense = transactions.filter(t => t.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
   const totalBalance = allTimeIncome - allTimeExpense;
 
   const monthRealizedIncome = currentMonthTransactions.filter(t => t.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
@@ -311,7 +312,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
             <div className="relative z-10">
                 <p className="text-slate-400 text-xs font-medium mb-1">Saldo Atual</p>
                 <h2 className="text-2xl font-bold text-white mb-1">R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
-                <p className="text-[10px] text-slate-500">Apenas lançamentos efetivados</p>
+                <p className="text-[10px] text-slate-500">Saldo consolidado (Inclui pendentes)</p>
             </div>
         </div>
 
@@ -348,15 +349,25 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
              <h3 className="font-bold text-white mb-4 text-xs uppercase tracking-wider text-slate-400">Saldos por Banco</h3>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {banks.filter(b => b.active).map(bank => {
+                    // Calculate ACTUAL (Transactions)
+                    const bankTransactions = transactions.filter(t => t.bankId === bank.id);
+                    const bankBalance = bankTransactions.reduce((acc, t) => {
+                        const val = Number(t.value);
+                        const type = String(t.type).toLowerCase();
+                        if (type.includes('credit') || type.includes('receita') || type === 'credito') return acc + val;
+                        return acc - val;
+                    }, 0);
+
+                    // Calculate FORECAST (Future)
                     const bankPendingForecasts = allPendingForecasts.filter(f => f.bankId === bank.id);
-                    const pendingTotal = bankPendingForecasts.reduce((acc, f) => {
+                    const forecastsTotal = bankPendingForecasts.reduce((acc, f) => {
                         const val = Number(f.value);
                         const type = String(f.type).toLowerCase();
-                        if (type.includes('credit') || type.includes('receita')) return acc + val;
-                        if (type.includes('debit') || type.includes('despesa')) return acc - val;
-                        return acc;
+                        if (type.includes('credit') || type.includes('receita') || type === 'credito') return acc + val;
+                        return acc - val;
                     }, 0);
-                    const projectedBalance = bank.balance + pendingTotal;
+
+                    const projectedBalance = bankBalance + forecastsTotal;
 
                     return (
                         <div 
@@ -375,8 +386,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
                             <div className="space-y-1">
                                 <div className="flex justify-between items-center text-[10px]">
                                     <span className="text-slate-500">Atual</span>
-                                    <span className={bank.balance >= 0 ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
-                                        R$ {bank.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    <span className={bankBalance >= 0 ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
+                                        R$ {bankBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center text-[10px]">

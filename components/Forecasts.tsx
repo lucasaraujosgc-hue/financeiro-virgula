@@ -48,7 +48,8 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories, onUpda
         const res = await fetch('/api/forecasts', { headers: getHeaders() });
         if (res.ok) {
             const data = await res.json();
-            setForecasts(data);
+            // Ensure data is an array
+            setForecasts(Array.isArray(data) ? data : []);
         }
     } catch (e) {
         console.error(e);
@@ -126,7 +127,8 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories, onUpda
                     bankId: Number(formData.bankId),
                     installmentCurrent: formData.isFixed ? i + 1 : i + 1,
                     installmentTotal: formData.isFixed ? 0 : installments, 
-                    groupId: (installments > 1 || formData.isFixed) ? groupId : null
+                    groupId: (installments > 1 || formData.isFixed) ? groupId : null,
+                    realized: false
                 };
 
                 await fetch('/api/forecasts', {
@@ -209,7 +211,8 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories, onUpda
       const yearMatch = parseInt(y) === selectedYear;
       const monthMatch = (parseInt(m) - 1) === selectedMonth;
       const bankMatch = selectedBankId === 'all' || f.bankId === selectedBankId;
-      return yearMatch && monthMatch && bankMatch && !f.realized; // Only show pending forecasts
+      // Note: server.js now returns realized as boolean true/false correctly
+      return yearMatch && monthMatch && bankMatch && !f.realized; 
   });
 
   const totalIncome = filteredForecasts.filter(f => f.type === TransactionType.CREDIT).reduce((a, b) => a + b.value, 0);
