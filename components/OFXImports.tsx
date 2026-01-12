@@ -499,19 +499,21 @@ const OFXImports: React.FC<OFXImportsProps> = ({ userId, banks, keywordRules, tr
                 ) : (
                     imports.map(imp => {
                         const bank = banks.find(b => b.id === imp.bankId);
+                        const importDate = imp.importDate ? new Date(imp.importDate) : null;
+                        
                         return (
                             <tr key={imp.id} className="hover:bg-slate-800/50">
                                 <td className="px-6 py-4 text-slate-400">
-                                    {new Date(imp.importDate).toLocaleDateString()}
+                                    {importDate && !isNaN(importDate.getTime()) ? importDate.toLocaleDateString() : '-'}
                                 </td>
-                                <td className="px-6 py-4 font-medium text-slate-200">{imp.fileName}</td>
+                                <td className="px-6 py-4 font-medium text-slate-200">{imp.fileName || 'Arquivo OFX'}</td>
                                 <td className="px-6 py-4 flex items-center gap-2 text-slate-300">
                                     {bank && <img src={bank.logo} className="w-5 h-5 rounded-full bg-white p-0.5" />}
                                     {bank?.name || 'Desconhecido'}
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     <span className="bg-sky-500/10 text-sky-500 px-2 py-1 rounded-md text-xs font-bold border border-sky-500/20">
-                                        {imp.transactionCount}
+                                        {imp.transactionCount || 0}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-center">

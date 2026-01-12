@@ -38,6 +38,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories, onUpda
       'user-id': String(userId)
   });
 
+  // Force fetch on mount
   useEffect(() => {
     fetchForecasts();
   }, [userId]); 
@@ -45,7 +46,10 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories, onUpda
   const fetchForecasts = async () => {
     try {
         const res = await fetch('/api/forecasts', { headers: getHeaders() });
-        if (res.ok) setForecasts(await res.json());
+        if (res.ok) {
+            const data = await res.json();
+            setForecasts(data);
+        }
     } catch (e) {
         console.error(e);
     }
@@ -111,9 +115,10 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories, onUpda
             for (let i = 0; i < installments; i++) {
                 const currentDate = new Date(baseDate);
                 currentDate.setMonth(baseDate.getMonth() + i);
+                const dateStr = currentDate.toISOString().split('T')[0];
                 
                 const payload = {
-                    date: currentDate.toISOString().split('T')[0],
+                    date: dateStr,
                     description: formData.description,
                     value: value,
                     type: formData.type,
@@ -199,11 +204,12 @@ const Forecasts: React.FC<ForecastsProps> = ({ userId, banks, categories, onUpda
   };
 
   const filteredForecasts = forecasts.filter(f => {
+      if (!f.date) return false;
       const [y, m] = f.date.split('-'); 
       const yearMatch = parseInt(y) === selectedYear;
       const monthMatch = (parseInt(m) - 1) === selectedMonth;
       const bankMatch = selectedBankId === 'all' || f.bankId === selectedBankId;
-      return yearMatch && monthMatch && bankMatch;
+      return yearMatch && monthMatch && bankMatch && !f.realized; // Only show pending forecasts
   });
 
   const totalIncome = filteredForecasts.filter(f => f.type === TransactionType.CREDIT).reduce((a, b) => a + b.value, 0);

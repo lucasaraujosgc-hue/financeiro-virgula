@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Transaction, TransactionType, Bank, Forecast, Category, CategoryType } from '../types';
-import { Wallet, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar, Edit2, ShieldCheck, FileText, ArrowRight } from 'lucide-react';
+import { Wallet, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar, ShieldCheck } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface DashboardProps {
@@ -71,9 +71,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       return fDateMidnight < startOfSelectedMonth && !f.realized;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const overdueIncome = overdueForecasts.filter(f => f.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
-  const overdueExpense = overdueForecasts.filter(f => f.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
-
   const allPendingForecasts = forecasts.filter(f => !f.realized);
 
   const currentMonthTransactions = transactions.filter(t => {
@@ -110,8 +107,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
   const topIncomeCategories = getTopCategories(TransactionType.CREDIT);
   const topExpenseCategories = getTopCategories(TransactionType.DEBIT);
 
-  const allTimeIncome = transactions.filter(t => t.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
-  const allTimeExpense = transactions.filter(t => t.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
+  const allTimeIncome = transactions.filter(t => t.type === TransactionType.CREDIT && t.reconciled).reduce((acc, curr) => acc + curr.value, 0);
+  const allTimeExpense = transactions.filter(t => t.type === TransactionType.DEBIT && t.reconciled).reduce((acc, curr) => acc + curr.value, 0);
   const totalBalance = allTimeIncome - allTimeExpense;
 
   const monthRealizedIncome = currentMonthTransactions.filter(t => t.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
@@ -207,34 +204,59 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       const installments = formData.isFixed ? 60 : Math.max(1, Math.floor(Number(formData.installments)));
 
       try {
-          for (let i = 0; i < installments; i++) {
-              const currentDate = new Date(baseDate);
-              currentDate.setMonth(baseDate.getMonth() + i);
-              const dateStr = currentDate.toISOString().split('T')[0];
-              const isRecurrent = installments > 1 || formData.isFixed;
-              const currentInstallment = i + 1;
-              
-              if (target === 'transaction' && i === 0) {
-                  const descSuffix = isRecurrent ? (formData.isFixed ? ' (Fixo)' : ` (${currentInstallment}/${installments})`) : '';
-                  await fetch('/api/transactions', {
-                       method: 'POST', headers: getHeaders(),
-                       body: JSON.stringify({
-                           date: dateStr, description: formData.description + descSuffix, value: value, type: formData.type,
-                           categoryId: Number(formData.categoryId), bankId: Number(formData.bankId), reconciled: false
-                       })
-                   });
-              } else {
+          // If explicitly chosen as forecast OR if there are multiple installments, treat as forecast logic
+          if (target === 'forecast') {
+              // SAVE AS FORECAST
+              for (let i = 0; i < installments; i++) {
+                  const currentDate = new Date(baseDate);
+                  currentDate.setMonth(baseDate.getMonth() + i);
+                  const dateStr = currentDate.toISOString().split('T')[0];
+                  const isRecurrent = installments > 1 || formData.isFixed;
+                  
                   await fetch('/api/forecasts', {
                       method: 'POST', headers: getHeaders(),
                       body: JSON.stringify({
                           date: dateStr, description: formData.description, value: value, type: formData.type,
                           categoryId: Number(formData.categoryId), bankId: Number(formData.bankId),
-                          installmentCurrent: currentInstallment, installmentTotal: formData.isFixed ? 0 : installments,
+                          installmentCurrent: i + 1, installmentTotal: formData.isFixed ? 0 : installments,
                           groupId: isRecurrent ? groupId : null, realized: false
                       })
                   });
               }
+          } else {
+              // SAVE AS TRANSACTION (Only the first one, others as forecast if recurrent)
+              for (let i = 0; i < installments; i++) {
+                  const currentDate = new Date(baseDate);
+                  currentDate.setMonth(baseDate.getMonth() + i);
+                  const dateStr = currentDate.toISOString().split('T')[0];
+                  const isRecurrent = installments > 1 || formData.isFixed;
+                  const currentInstallment = i + 1;
+                  
+                  if (i === 0) {
+                      // First one goes to Transactions
+                      const descSuffix = isRecurrent ? (formData.isFixed ? ' (Fixo)' : ` (${currentInstallment}/${installments})`) : '';
+                      await fetch('/api/transactions', {
+                           method: 'POST', headers: getHeaders(),
+                           body: JSON.stringify({
+                               date: dateStr, description: formData.description + descSuffix, value: value, type: formData.type,
+                               categoryId: Number(formData.categoryId), bankId: Number(formData.bankId), reconciled: false
+                           })
+                       });
+                  } else {
+                      // Rest go to Forecasts
+                      await fetch('/api/forecasts', {
+                          method: 'POST', headers: getHeaders(),
+                          body: JSON.stringify({
+                              date: dateStr, description: formData.description, value: value, type: formData.type,
+                              categoryId: Number(formData.categoryId), bankId: Number(formData.bankId),
+                              installmentCurrent: currentInstallment, installmentTotal: formData.isFixed ? 0 : installments,
+                              groupId: isRecurrent ? groupId : null, realized: false
+                          })
+                      });
+                  }
+              }
           }
+          
           setIsModalOpen(false);
           await onRefresh();
       } catch (error) { alert("Erro ao salvar"); }
@@ -497,7 +519,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
           </div>
       </div>
 
-       {/* Overdue Items Modal */}
+       {/* Overdue Items Modal and other modals omitted for brevity, but they are part of the component structure */}
        {isOverdueModalOpen && (
          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsOverdueModalOpen(false)} />
@@ -567,7 +589,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
          </div>
        )}
 
-       {/* Bank Specific Forecasts Modal */}
        {selectedBankForForecasts && (
            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSelectedBankForForecasts(null)} />
