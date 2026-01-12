@@ -81,6 +81,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   });
 
+  const recentTransactions = [...currentMonthTransactions]
+      .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5);
+
   // Calculate Category Analysis
   const getTopCategories = (type: TransactionType) => {
       const filtered = currentMonthTransactions.filter(t => t.type === type);
@@ -239,19 +243,19 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
   const availableCategories = categories.filter(c => formData.type === TransactionType.CREDIT ? c.type === CategoryType.INCOME : c.type === CategoryType.EXPENSE);
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-4 pb-4">
       
       {/* Overdue Alert Banner */}
       {overdueForecasts.length > 0 && (
-          <div onClick={() => setIsOverdueModalOpen(true)} className="bg-amber-950/40 border border-amber-500/30 p-4 rounded-xl cursor-pointer hover:bg-amber-900/40 transition-all group">
+          <div onClick={() => setIsOverdueModalOpen(true)} className="bg-amber-950/40 border border-amber-500/30 p-3 rounded-xl cursor-pointer hover:bg-amber-900/40 transition-all group">
               <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center border border-amber-500/30">
-                          <AlertTriangle size={20} />
+                  <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center border border-amber-500/30">
+                          <AlertTriangle size={16} />
                       </div>
                       <div>
-                          <h3 className="font-bold text-amber-400">Pendências</h3>
-                          <p className="text-sm text-amber-200/70">{overdueForecasts.length} previsões atrasadas.</p>
+                          <h3 className="font-bold text-amber-400 text-sm">Pendências</h3>
+                          <p className="text-xs text-amber-200/70">{overdueForecasts.length} previsões atrasadas.</p>
                       </div>
                   </div>
                   <div className="bg-amber-500 text-slate-900 px-3 py-1 rounded-lg text-xs font-bold">Resolver</div>
@@ -260,67 +264,67 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       )}
 
       {/* Header with Navigation */}
-      <div className="flex flex-col md:flex-row justify-between items-end gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-end gap-3">
         <div>
-            <div className="flex items-center gap-2 mb-1">
-                 <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={18}/></button>
-                 <span className="text-white font-bold text-lg capitalize">{MONTHS[currentMonth]} / {currentYear}</span>
-                 <button onClick={handleNextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={18}/></button>
+            <div className="flex items-center gap-2 mb-0.5">
+                 <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
+                 <span className="text-white font-bold text-base capitalize">{MONTHS[currentMonth]} / {currentYear}</span>
+                 <button onClick={handleNextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={16}/></button>
             </div>
-            <p className="text-slate-400 text-sm">Visão geral do fluxo de caixa</p>
+            <p className="text-slate-400 text-xs">Visão geral do fluxo de caixa</p>
         </div>
         <div className="flex gap-2">
-            <button onClick={() => openModal(TransactionType.CREDIT)} className="w-10 h-10 rounded-xl bg-primary hover:bg-primaryHover text-slate-900 flex items-center justify-center shadow-lg transition-all" title="Nova Receita"><Plus size={24} /></button>
-            <button onClick={() => openModal(TransactionType.DEBIT)} className="w-10 h-10 rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-lg transition-all" title="Nova Despesa"><Minus size={24} /></button>
+            <button onClick={() => openModal(TransactionType.CREDIT)} className="w-9 h-9 rounded-lg bg-primary hover:bg-primaryHover text-slate-900 flex items-center justify-center shadow-lg transition-all" title="Nova Receita"><Plus size={20} /></button>
+            <button onClick={() => openModal(TransactionType.DEBIT)} className="w-9 h-9 rounded-lg bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-lg transition-all" title="Nova Despesa"><Minus size={20} /></button>
         </div>
       </div>
 
       {/* Top Cards (Summary) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Balance */}
-        <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 relative overflow-hidden group">
-            <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Wallet size={64} className="text-slate-400"/>
+        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 relative overflow-hidden group">
+            <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Wallet size={48} className="text-slate-400"/>
             </div>
             <div className="relative z-10">
-                <p className="text-slate-400 text-sm font-medium mb-1">Saldo Atual</p>
-                <h2 className="text-3xl font-bold text-white mb-2">R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
-                <p className="text-xs text-slate-500">Apenas lançamentos efetivados</p>
+                <p className="text-slate-400 text-xs font-medium mb-1">Saldo Atual</p>
+                <h2 className="text-2xl font-bold text-white mb-1">R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                <p className="text-[10px] text-slate-500">Apenas lançamentos efetivados</p>
             </div>
         </div>
 
         {/* Income */}
-        <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 relative overflow-hidden group">
-            <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
-                <CheckCircle2 size={64} className="text-emerald-500"/>
+        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 relative overflow-hidden group">
+            <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <CheckCircle2 size={48} className="text-emerald-500"/>
             </div>
             <div className="relative z-10">
-                <p className="text-emerald-500 text-sm font-medium mb-1 flex items-center gap-1"><TrendingUp size={16}/> Receitas</p>
-                <h2 className="text-3xl font-bold text-emerald-400 mb-2">R$ {monthRealizedIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
-                <p className="text-xs text-slate-500">Previsto: <span className="text-emerald-500/70">+ R$ {monthForecastIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p>
+                <p className="text-emerald-500 text-xs font-medium mb-1 flex items-center gap-1"><TrendingUp size={14}/> Receitas</p>
+                <h2 className="text-2xl font-bold text-emerald-400 mb-1">R$ {monthRealizedIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                <p className="text-[10px] text-slate-500">Previsto: <span className="text-emerald-500/70">+ R$ {monthForecastIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p>
             </div>
         </div>
 
         {/* Expense */}
-        <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 relative overflow-hidden group">
-            <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
-                <ShieldCheck size={64} className="text-rose-500"/>
+        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 relative overflow-hidden group">
+            <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <ShieldCheck size={48} className="text-rose-500"/>
             </div>
             <div className="relative z-10">
-                <p className="text-rose-500 text-sm font-medium mb-1 flex items-center gap-1"><TrendingDown size={16}/> Despesas</p>
-                <h2 className="text-3xl font-bold text-rose-400 mb-2">R$ {monthRealizedExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
-                <p className="text-xs text-slate-500">Previsto: <span className="text-rose-500/70">+ R$ {monthForecastExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p>
+                <p className="text-rose-500 text-xs font-medium mb-1 flex items-center gap-1"><TrendingDown size={14}/> Despesas</p>
+                <h2 className="text-2xl font-bold text-rose-400 mb-1">R$ {monthRealizedExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                <p className="text-[10px] text-slate-500">Previsto: <span className="text-rose-500/70">+ R$ {monthForecastExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p>
             </div>
         </div>
       </div>
 
       {/* Middle Row: Banks & Chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         
         {/* Bank Balances */}
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col">
-             <h3 className="font-bold text-white mb-6 text-sm uppercase tracking-wider text-slate-400">Saldos por Banco</h3>
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col">
+             <h3 className="font-bold text-white mb-4 text-xs uppercase tracking-wider text-slate-400">Saldos por Banco</h3>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {banks.filter(b => b.active).map(bank => {
                     const bankPendingForecasts = allPendingForecasts.filter(f => f.bankId === bank.id);
                     const pendingTotal = bankPendingForecasts.reduce((acc, f) => {
@@ -336,24 +340,24 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
                         <div 
                             key={bank.id} 
                             onClick={() => setSelectedBankForForecasts(bank.id)}
-                            className="p-4 rounded-xl border border-slate-800 bg-black/20 hover:bg-slate-800/50 transition-all cursor-pointer group"
+                            className="p-3 rounded-lg border border-slate-800 bg-black/20 hover:bg-slate-800/50 transition-all cursor-pointer group"
                         >
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="w-10 h-10 rounded-lg bg-white p-1.5 flex items-center justify-center overflow-hidden">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-8 h-8 rounded-md bg-white p-1 flex items-center justify-center overflow-hidden">
                                     <img src={bank.logo} alt={bank.name} className="max-w-full max-h-full object-contain" />
                                 </div>
                                 <div>
-                                    <h4 className="font-bold text-slate-200 text-sm">{bank.name}</h4>
+                                    <h4 className="font-bold text-slate-200 text-xs">{bank.name}</h4>
                                 </div>
                             </div>
                             <div className="space-y-1">
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-slate-500">Saldo Atual</span>
+                                <div className="flex justify-between items-center text-[10px]">
+                                    <span className="text-slate-500">Atual</span>
                                     <span className={bank.balance >= 0 ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
                                         R$ {bank.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
-                                <div className="flex justify-between items-center text-xs">
+                                <div className="flex justify-between items-center text-[10px]">
                                     <span className="text-slate-500">Projetado</span>
                                     <span className={projectedBalance >= 0 ? 'text-slate-300' : 'text-slate-300'}>
                                         R$ {projectedBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -367,17 +371,17 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
         </div>
 
         {/* Chart */}
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col">
-            <h3 className="font-bold text-white mb-6 text-sm uppercase tracking-wider text-slate-400">Receita x Despesa (Mensal)</h3>
-            <div className="flex-1 w-full min-h-[200px]">
+        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col">
+            <h3 className="font-bold text-white mb-4 text-xs uppercase tracking-wider text-slate-400">Receita x Despesa (Mensal)</h3>
+            <div className="flex-1 w-full h-40">
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} layout="horizontal" barSize={60}>
+                    <BarChart data={chartData} layout="horizontal" barSize={40}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                        <XAxis dataKey="name" tick={{fill: '#94a3b8', fontSize: 12}} axisLine={false} tickLine={false} />
+                        <XAxis dataKey="name" tick={{fill: '#94a3b8', fontSize: 10}} axisLine={false} tickLine={false} />
                         <YAxis hide />
                         <Tooltip 
                             cursor={{fill: '#1e293b', opacity: 0.3}}
-                            contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#fff'}}
+                            contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#fff', fontSize: '12px'}}
                         />
                         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                             {chartData.map((entry, index) => (
@@ -391,19 +395,19 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       </div>
 
       {/* Analysis Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Income Analysis */}
-          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-              <h3 className="font-bold text-white mb-6 text-sm uppercase tracking-wider text-slate-400">Análise de Receitas</h3>
-              <div className="space-y-4">
+          <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
+              <h3 className="font-bold text-white mb-4 text-xs uppercase tracking-wider text-slate-400">Análise de Receitas</h3>
+              <div className="space-y-3">
                   {topIncomeCategories.map((cat, idx) => (
                       <div key={idx}>
-                          <div className="flex justify-between items-center text-sm mb-1">
-                              <span className="text-slate-300 font-medium">{cat.name}</span>
+                          <div className="flex justify-between items-center text-xs mb-1">
+                              <span className="text-slate-300 font-medium truncate max-w-[70%]">{cat.name}</span>
                               <span className="text-emerald-400 font-bold">R$ {cat.value.toFixed(2)}</span>
                           </div>
-                          <div className="w-full bg-slate-800 rounded-full h-2">
-                              <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${cat.percent}%` }}></div>
+                          <div className="w-full bg-slate-800 rounded-full h-1.5">
+                              <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${cat.percent}%` }}></div>
                           </div>
                       </div>
                   ))}
@@ -412,17 +416,17 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
           </div>
 
           {/* Expense Analysis */}
-          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-              <h3 className="font-bold text-white mb-6 text-sm uppercase tracking-wider text-slate-400">Análise de Despesas</h3>
-              <div className="space-y-4">
+          <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
+              <h3 className="font-bold text-white mb-4 text-xs uppercase tracking-wider text-slate-400">Análise de Despesas</h3>
+              <div className="space-y-3">
                   {topExpenseCategories.map((cat, idx) => (
                       <div key={idx}>
-                          <div className="flex justify-between items-center text-sm mb-1">
-                              <span className="text-slate-300 font-medium">{cat.name}</span>
+                          <div className="flex justify-between items-center text-xs mb-1">
+                              <span className="text-slate-300 font-medium truncate max-w-[70%]">{cat.name}</span>
                               <span className="text-rose-400 font-bold">R$ {cat.value.toFixed(2)}</span>
                           </div>
-                          <div className="w-full bg-slate-800 rounded-full h-2">
-                              <div className="bg-rose-500 h-2 rounded-full" style={{ width: `${cat.percent}%` }}></div>
+                          <div className="w-full bg-slate-800 rounded-full h-1.5">
+                              <div className="bg-rose-500 h-1.5 rounded-full" style={{ width: `${cat.percent}%` }}></div>
                           </div>
                       </div>
                   ))}
@@ -432,56 +436,56 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       </div>
 
       {/* Detailed Transactions Table */}
-      <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
-              <h3 className="font-bold text-white text-sm uppercase tracking-wider text-slate-400">Lançamentos Detalhados - {MONTHS[currentMonth]} / {currentYear}</h3>
-              <div className="flex gap-2">
-                  <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
-                  <button onClick={handleNextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={16}/></button>
+      <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+              <h3 className="font-bold text-white text-xs uppercase tracking-wider text-slate-400">Últimos 5 Lançamentos - {MONTHS[currentMonth]} / {currentYear}</h3>
+              <div className="flex gap-1">
+                  <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={14}/></button>
+                  <button onClick={handleNextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={14}/></button>
               </div>
           </div>
-          <div className="overflow-x-auto max-h-[400px] custom-scroll">
-              <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-950 text-slate-400 font-medium sticky top-0 z-10">
+          <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-950 text-slate-400 font-medium border-b border-slate-800">
                       <tr>
-                          <th className="px-6 py-4">Data</th>
-                          <th className="px-6 py-4">Descrição</th>
-                          <th className="px-6 py-4">Categoria</th>
-                          <th className="px-6 py-4">Banco</th>
-                          <th className="px-6 py-4 text-right">Valor</th>
-                          <th className="px-6 py-4">Status</th>
-                          <th className="px-6 py-4 text-center">Ações</th>
+                          <th className="px-4 py-3">Data</th>
+                          <th className="px-4 py-3">Descrição</th>
+                          <th className="px-4 py-3">Categoria</th>
+                          <th className="px-4 py-3">Banco</th>
+                          <th className="px-4 py-3 text-right">Valor</th>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3 text-center">Ações</th>
                       </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                      {currentMonthTransactions.length === 0 ? (
-                          <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500">Nenhum lançamento neste mês.</td></tr>
+                      {recentTransactions.length === 0 ? (
+                          <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500">Nenhum lançamento neste mês.</td></tr>
                       ) : (
-                          currentMonthTransactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(t => {
+                          recentTransactions.map(t => {
                               const bank = banks.find(b => b.id === t.bankId);
                               const category = categories.find(c => c.id === t.categoryId);
                               return (
                                   <tr key={t.id} className="hover:bg-slate-800/30">
-                                      <td className="px-6 py-4 text-slate-400 font-mono">{new Date(t.date).toLocaleDateString('pt-BR')}</td>
-                                      <td className="px-6 py-4 text-slate-200 font-medium">{t.description}</td>
-                                      <td className="px-6 py-4 text-slate-400">{category?.name || '-'}</td>
-                                      <td className="px-6 py-4 text-slate-400 flex items-center gap-2">
+                                      <td className="px-4 py-2 text-slate-400 font-mono">{new Date(t.date).toLocaleDateString('pt-BR')}</td>
+                                      <td className="px-4 py-2 text-slate-200 font-medium">{t.description}</td>
+                                      <td className="px-4 py-2 text-slate-400">{category?.name || '-'}</td>
+                                      <td className="px-4 py-2 text-slate-400 flex items-center gap-2">
                                           {bank && <img src={bank.logo} className="w-4 h-4 rounded-full bg-white p-0.5" />}
                                           {bank?.name || 'Desconhecido'}
                                       </td>
-                                      <td className={`px-6 py-4 text-right font-bold ${t.type === TransactionType.CREDIT ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                      <td className={`px-4 py-2 text-right font-bold ${t.type === TransactionType.CREDIT ? 'text-emerald-500' : 'text-rose-500'}`}>
                                           {t.type === TransactionType.CREDIT ? '+' : '-'} R$ {t.value.toFixed(2)}
                                       </td>
-                                      <td className="px-6 py-4">
+                                      <td className="px-4 py-2">
                                           {t.reconciled ? (
-                                              <span className="flex items-center gap-1 text-emerald-500 text-xs font-bold"><CheckCircle2 size={14}/> Conciliado</span>
+                                              <span className="flex items-center gap-1 text-emerald-500 text-[10px] font-bold"><CheckCircle2 size={12}/> Conciliado</span>
                                           ) : (
-                                              <span className="flex items-center gap-1 text-slate-500 text-xs font-bold"><CheckCircle2 size={14}/> Pendente</span>
+                                              <span className="flex items-center gap-1 text-slate-500 text-[10px] font-bold"><CheckCircle2 size={12}/> Pendente</span>
                                           )}
                                       </td>
-                                      <td className="px-6 py-4 text-center">
-                                          <button onClick={() => handleDeleteTransaction(t.id)} className="p-1.5 text-slate-500 hover:text-rose-500 transition-colors">
-                                              <Trash2 size={16}/>
+                                      <td className="px-4 py-2 text-center">
+                                          <button onClick={() => handleDeleteTransaction(t.id)} className="p-1 text-slate-500 hover:text-rose-500 transition-colors">
+                                              <Trash2 size={14}/>
                                           </button>
                                       </td>
                                   </tr>
