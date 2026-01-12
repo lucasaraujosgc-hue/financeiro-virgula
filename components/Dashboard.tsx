@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Transaction, TransactionType, Bank, Forecast, Category, CategoryType } from '../types';
-import { ArrowUpCircle, ArrowDownCircle, Wallet, AlertCircle, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Wallet, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar, Edit2, ShieldCheck, FileText, ArrowRight } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface DashboardProps {
   userId: number;
@@ -16,7 +16,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
   
-  // New States for Bank Details & Realization
   const [selectedBankForForecasts, setSelectedBankForForecasts] = useState<number | null>(null);
   const [realizeModal, setRealizeModal] = useState<{ isOpen: boolean; forecast: Forecast | null; date: string }>({
       isOpen: false,
@@ -24,8 +23,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       date: ''
   });
 
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
 
   const [formData, setFormData] = useState({
       description: '',
@@ -46,7 +45,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       'user-id': String(userId)
   });
 
-  // Navigation Logic Fix
   const handlePrevMonth = () => {
     if (currentMonth === 0) {
         setCurrentMonth(11);
@@ -65,10 +63,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
     }
   };
 
-  // Calculate Overdue Forecasts (Before selected month start, not realized)
+  // --- Logic for Data Calculation ---
+
   const overdueForecasts = forecasts.filter(f => {
       const fDate = new Date(f.date);
-      // Ajuste para garantir comparação correta ignorando horas (apenas datas)
       const fDateMidnight = new Date(fDate.getFullYear(), fDate.getMonth(), fDate.getDate());
       return fDateMidnight < startOfSelectedMonth && !f.realized;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -76,14 +74,61 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
   const overdueIncome = overdueForecasts.filter(f => f.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
   const overdueExpense = overdueForecasts.filter(f => f.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
 
-  // Filter Forecasts for the current/selected view (Selected Month + Overdue for total calc context if needed, but let's stick to Pending)
-  // For "Saldos por Banco", we want ALL pending forecasts or just this month? 
-  // Usually, projected balance = current + all pending future. 
-  // Let's filter pending forecasts per bank (All future/pending) to show a "Projected Future" or just "Pending in this View".
-  // Let's stick to "Pending Forecasts" meaning ALL un-realized forecasts to show the true future impact.
   const allPendingForecasts = forecasts.filter(f => !f.realized);
 
-  // Initialize form when opening modal
+  const currentMonthTransactions = transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+
+  // Calculate Category Analysis
+  const getTopCategories = (type: TransactionType) => {
+      const filtered = currentMonthTransactions.filter(t => t.type === type);
+      const total = filtered.reduce((acc, t) => acc + t.value, 0);
+      
+      const grouped = filtered.reduce((acc, t) => {
+          const cat = categories.find(c => c.id === t.categoryId);
+          const name = cat ? cat.name : 'Sem Categoria';
+          acc[name] = (acc[name] || 0) + t.value;
+          return acc;
+      }, {} as Record<string, number>);
+
+      return Object.entries(grouped)
+          .map(([name, value]) => ({ 
+              name, 
+              value: Number(value), 
+              percent: total > 0 ? (Number(value) / total) * 100 : 0 
+          }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 4); // Top 4 categories
+  };
+
+  const topIncomeCategories = getTopCategories(TransactionType.CREDIT);
+  const topExpenseCategories = getTopCategories(TransactionType.DEBIT);
+
+  const allTimeIncome = transactions.filter(t => t.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
+  const allTimeExpense = transactions.filter(t => t.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
+  const totalBalance = allTimeIncome - allTimeExpense;
+
+  const monthRealizedIncome = currentMonthTransactions.filter(t => t.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
+  const monthRealizedExpense = currentMonthTransactions.filter(t => t.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
+
+  const currentMonthForecasts = forecasts.filter(f => {
+      const d = new Date(f.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear && !f.realized;
+  });
+
+  const monthForecastIncome = currentMonthForecasts.filter(f => f.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
+  const monthForecastExpense = currentMonthForecasts.filter(f => f.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
+
+  // Chart Data
+  const chartData = [
+      { name: 'Receita', value: monthRealizedIncome },
+      { name: 'Despesa', value: monthRealizedExpense },
+  ];
+
+  // --- Modal & Action Handlers ---
+
   const openModal = (type: TransactionType) => {
       setFormData({
           description: '',
@@ -102,28 +147,18 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       setRealizeModal({
           isOpen: true,
           forecast,
-          date: forecast.date // Default to forecast date
+          date: forecast.date
       });
   };
 
   const confirmRealization = async () => {
       if (!realizeModal.forecast || !realizeModal.date) return;
-      
       const forecast = realizeModal.forecast;
       const finalDate = realizeModal.date;
 
       try {
-        // 1. Mark as realized
-        await fetch(`/api/forecasts/${forecast.id}/realize`, { 
-            method: 'PATCH',
-            headers: getHeaders()
-        });
-        
-        // 2. Create transaction with SELECTED date
-        const descSuffix = forecast.installmentTotal 
-            ? ` (${forecast.installmentCurrent}/${forecast.installmentTotal})` 
-            : (forecast.groupId ? ' (Recorrente)' : '');
-
+        await fetch(`/api/forecasts/${forecast.id}/realize`, { method: 'PATCH', headers: getHeaders() });
+        const descSuffix = forecast.installmentTotal ? ` (${forecast.installmentCurrent}/${forecast.installmentTotal})` : (forecast.groupId ? ' (Recorrente)' : '');
         await fetch('/api/transactions', {
             method: 'POST',
             headers: getHeaders(),
@@ -137,42 +172,34 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
                 reconciled: false
             })
         });
-
         await onRefresh();
         setRealizeModal({ isOpen: false, forecast: null, date: '' });
-        // Close parent modals if empty
         if (overdueForecasts.length <= 1) setIsOverdueModalOpen(false);
-        // If viewing bank specific, we don't close it, just refresh data (which triggers re-render)
-
-      } catch (error) {
-          alert("Erro ao efetivar previsão.");
-      }
+      } catch (error) { alert("Erro ao efetivar previsão."); }
   };
 
   const handleDeleteForecast = async (id: number) => {
       if(!confirm('Excluir esta previsão pendente?')) return;
       try {
-          await fetch(`/api/forecasts/${id}`, { 
-            method: 'DELETE',
-            headers: getHeaders()
-          });
+          await fetch(`/api/forecasts/${id}`, { method: 'DELETE', headers: getHeaders() });
           await onRefresh();
           if (overdueForecasts.length <= 1) setIsOverdueModalOpen(false);
-      } catch (e) {
-          alert("Erro ao excluir.");
-      }
+      } catch (e) { alert("Erro ao excluir."); }
+  };
+
+  const handleDeleteTransaction = async (id: number) => {
+      if(!confirm('Excluir este lançamento?')) return;
+      try {
+          await fetch(`/api/transactions/${id}`, { method: 'DELETE', headers: getHeaders() });
+          await onRefresh();
+      } catch (e) { alert("Erro ao excluir."); }
   };
 
   const handleQuickSave = async (target: 'forecast' | 'transaction') => {
-      if (!formData.description || !formData.value || !formData.bankId) {
-          alert("Preencha todos os campos obrigatórios");
-          return;
-      }
-      
+      if (!formData.description || !formData.value || !formData.bankId) return alert("Preencha todos os campos obrigatórios");
       const value = Math.abs(Number(formData.value));
       const groupId = Date.now().toString();
       const baseDate = new Date(formData.date);
-      
       const installments = formData.isFixed ? 60 : Math.max(1, Math.floor(Number(formData.installments)));
 
       try {
@@ -180,383 +207,290 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
               const currentDate = new Date(baseDate);
               currentDate.setMonth(baseDate.getMonth() + i);
               const dateStr = currentDate.toISOString().split('T')[0];
-              
               const isRecurrent = installments > 1 || formData.isFixed;
               const currentInstallment = i + 1;
               
               if (target === 'transaction' && i === 0) {
-                  const descSuffix = isRecurrent 
-                    ? (formData.isFixed ? ' (Fixo)' : ` (${currentInstallment}/${installments})`)
-                    : '';
-
+                  const descSuffix = isRecurrent ? (formData.isFixed ? ' (Fixo)' : ` (${currentInstallment}/${installments})`) : '';
                   await fetch('/api/transactions', {
-                       method: 'POST',
-                       headers: getHeaders(),
+                       method: 'POST', headers: getHeaders(),
                        body: JSON.stringify({
-                           date: dateStr,
-                           description: formData.description + descSuffix,
-                           value: value,
-                           type: formData.type,
-                           categoryId: Number(formData.categoryId),
-                           bankId: Number(formData.bankId),
-                           reconciled: false
+                           date: dateStr, description: formData.description + descSuffix, value: value, type: formData.type,
+                           categoryId: Number(formData.categoryId), bankId: Number(formData.bankId), reconciled: false
                        })
                    });
               } else {
-                  const payload = {
-                      date: dateStr,
-                      description: formData.description,
-                      value: value,
-                      type: formData.type,
-                      categoryId: Number(formData.categoryId),
-                      bankId: Number(formData.bankId),
-                      installmentCurrent: currentInstallment,
-                      installmentTotal: formData.isFixed ? 0 : installments,
-                      groupId: isRecurrent ? groupId : null,
-                      realized: false
-                  };
-
-                   await fetch('/api/forecasts', {
-                      method: 'POST',
-                      headers: getHeaders(),
-                      body: JSON.stringify(payload)
+                  await fetch('/api/forecasts', {
+                      method: 'POST', headers: getHeaders(),
+                      body: JSON.stringify({
+                          date: dateStr, description: formData.description, value: value, type: formData.type,
+                          categoryId: Number(formData.categoryId), bankId: Number(formData.bankId),
+                          installmentCurrent: currentInstallment, installmentTotal: formData.isFixed ? 0 : installments,
+                          groupId: isRecurrent ? groupId : null, realized: false
+                      })
                   });
               }
           }
-
-          if (target === 'forecast') {
-             alert("Previsões geradas com sucesso!");
-          } else {
-             alert(installments > 1 
-                ? "1º lançamento efetivado e parcelas futuras agendadas!" 
-                : "Lançamento efetivado com sucesso!");
-          }
-
           setIsModalOpen(false);
           await onRefresh();
-      } catch (error) {
-          alert("Erro ao salvar");
-          console.error(error);
-      }
+      } catch (error) { alert("Erro ao salvar"); }
   };
 
-  const availableCategories = categories.filter(c => 
-    formData.type === TransactionType.CREDIT 
-      ? c.type === CategoryType.INCOME 
-      : c.type === CategoryType.EXPENSE
-  );
-
-  const allTimeIncome = transactions
-    .filter(t => t.type === TransactionType.CREDIT)
-    .reduce((acc, curr) => acc + curr.value, 0);
-
-  const allTimeExpense = transactions
-    .filter(t => t.type === TransactionType.DEBIT)
-    .reduce((acc, curr) => acc + curr.value, 0);
-
-  const totalBalance = allTimeIncome - allTimeExpense;
-
-  const currentMonthTransactions = transactions.filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-  });
-
-  const monthRealizedIncome = currentMonthTransactions
-    .filter(t => t.type === TransactionType.CREDIT)
-    .reduce((acc, curr) => acc + curr.value, 0);
-
-  const monthRealizedExpense = currentMonthTransactions
-    .filter(t => t.type === TransactionType.DEBIT)
-    .reduce((acc, curr) => acc + curr.value, 0);
-
-  const currentMonthForecasts = forecasts.filter(f => {
-      const d = new Date(f.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear && !f.realized;
-  });
-
-  const monthForecastIncome = currentMonthForecasts
-    .filter(f => f.type === TransactionType.CREDIT)
-    .reduce((acc, curr) => acc + curr.value, 0);
-
-  const monthForecastExpense = currentMonthForecasts
-    .filter(f => f.type === TransactionType.DEBIT)
-    .reduce((acc, curr) => acc + curr.value, 0);
-
-  const reconciledCount = transactions.filter(t => t.reconciled).length;
-  const pendingCount = transactions.filter(t => !t.reconciled).length;
-
-  // Chart Data Preparation: Group transactions by day for Income vs Expense
-  const getLastDaysTransactions = () => {
-      // Get transactions from current view month
-      const dailyData: Record<string, { name: string, Receita: number, Despesa: number }> = {};
-      
-      // Initialize with empty days if needed, but for now just aggregating existing data
-      currentMonthTransactions.forEach(t => {
-          const day = t.date.split('-')[2];
-          if (!dailyData[day]) {
-              dailyData[day] = { name: day, Receita: 0, Despesa: 0 };
-          }
-          if (t.type === TransactionType.CREDIT) {
-              dailyData[day].Receita += t.value;
-          } else {
-              dailyData[day].Despesa += t.value;
-          }
-      });
-
-      return Object.values(dailyData).sort((a,b) => parseInt(a.name) - parseInt(b.name));
-  };
-
-  const barChartData = getLastDaysTransactions();
+  const availableCategories = categories.filter(c => formData.type === TransactionType.CREDIT ? c.type === CategoryType.INCOME : c.type === CategoryType.EXPENSE);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       
       {/* Overdue Alert Banner */}
       {overdueForecasts.length > 0 && (
-          <div 
-            onClick={() => setIsOverdueModalOpen(true)}
-            className="bg-amber-950/40 border border-amber-500/30 p-4 rounded-xl cursor-pointer hover:bg-amber-900/40 transition-all group animate-in fade-in slide-in-from-top-4"
-          >
+          <div onClick={() => setIsOverdueModalOpen(true)} className="bg-amber-950/40 border border-amber-500/30 p-4 rounded-xl cursor-pointer hover:bg-amber-900/40 transition-all group">
               <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center border border-amber-500/30 group-hover:scale-110 transition-transform">
+                      <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center border border-amber-500/30">
                           <AlertTriangle size={20} />
                       </div>
                       <div>
-                          <h3 className="font-bold text-amber-400">Pendências de Meses Anteriores</h3>
-                          <p className="text-sm text-amber-200/70">
-                              Você possui <strong className="text-amber-100">{overdueForecasts.length} previsões</strong> não realizadas.
-                          </p>
+                          <h3 className="font-bold text-amber-400">Pendências</h3>
+                          <p className="text-sm text-amber-200/70">{overdueForecasts.length} previsões atrasadas.</p>
                       </div>
                   </div>
-                  <div className="flex items-center gap-6 text-right">
-                      <div className="hidden md:block">
-                          <p className="text-xs text-amber-200/70 uppercase">Receitas Pendentes</p>
-                          <p className="font-bold text-emerald-400">R$ {overdueIncome.toFixed(2)}</p>
-                      </div>
-                      <div className="hidden md:block">
-                          <p className="text-xs text-amber-200/70 uppercase">Despesas Pendentes</p>
-                          <p className="font-bold text-rose-400">R$ {overdueExpense.toFixed(2)}</p>
-                      </div>
-                      <div className="bg-amber-500 text-slate-900 px-3 py-1 rounded-lg text-xs font-bold shadow-lg shadow-amber-900/20 group-hover:bg-amber-400 transition-colors">
-                          Resolver
-                      </div>
-                  </div>
+                  <div className="bg-amber-500 text-slate-900 px-3 py-1 rounded-lg text-xs font-bold">Resolver</div>
               </div>
           </div>
       )}
 
+      {/* Header with Navigation */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4">
         <div>
-            <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-            <div className="flex items-center gap-2 mt-1">
-                 <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
-                 <span className="text-slate-300 font-medium">{MONTHS[currentMonth]} de {currentYear}</span>
-                 <button onClick={handleNextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={16}/></button>
+            <div className="flex items-center gap-2 mb-1">
+                 <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={18}/></button>
+                 <span className="text-white font-bold text-lg capitalize">{MONTHS[currentMonth]} / {currentYear}</span>
+                 <button onClick={handleNextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={18}/></button>
             </div>
+            <p className="text-slate-400 text-sm">Visão geral do fluxo de caixa</p>
         </div>
         <div className="flex gap-2">
-            <button 
-                onClick={() => openModal(TransactionType.CREDIT)}
-                className="w-10 h-10 rounded-full bg-primary hover:bg-primaryHover text-slate-900 flex items-center justify-center shadow-lg shadow-emerald-900/50 transition-all hover:scale-105"
-                title="Nova Receita"
-            >
-                <Plus size={24} />
-            </button>
-            <button 
-                onClick={() => openModal(TransactionType.DEBIT)}
-                className="w-10 h-10 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-lg shadow-rose-900/50 transition-all hover:scale-105"
-                title="Nova Despesa"
-            >
-                <Minus size={24} />
-            </button>
+            <button onClick={() => openModal(TransactionType.CREDIT)} className="w-10 h-10 rounded-xl bg-primary hover:bg-primaryHover text-slate-900 flex items-center justify-center shadow-lg transition-all" title="Nova Receita"><Plus size={24} /></button>
+            <button onClick={() => openModal(TransactionType.DEBIT)} className="w-10 h-10 rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-lg transition-all" title="Nova Despesa"><Minus size={24} /></button>
         </div>
       </div>
 
-      {/* Cards de Resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Card Saldo */}
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 text-white shadow-lg border border-slate-700 flex flex-col justify-between h-32">
-          <div>
-            <div className="flex justify-between items-start mb-2">
-                <div className="p-1.5 bg-slate-700/50 rounded-lg">
-                   <Wallet className="w-4 h-4 text-primary" />
-                </div>
-                <span className="text-[10px] uppercase tracking-wider font-bold bg-slate-700/50 px-2 py-0.5 rounded-full text-slate-300">Saldo Atual</span>
+      {/* Top Cards (Summary) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Balance */}
+        <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 relative overflow-hidden group">
+            <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Wallet size={64} className="text-slate-400"/>
             </div>
-            <div className="text-2xl font-bold mb-0.5 text-white">
-                R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <div className="relative z-10">
+                <p className="text-slate-400 text-sm font-medium mb-1">Saldo Atual</p>
+                <h2 className="text-3xl font-bold text-white mb-2">R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                <p className="text-xs text-slate-500">Apenas lançamentos efetivados</p>
             </div>
-          </div>
-          <div className="text-slate-400 text-xs">Apenas lançamentos efetivados</div>
         </div>
 
-        {/* Card Receitas */}
-        <div className="bg-surface rounded-xl p-4 border border-slate-800 shadow-sm flex flex-col justify-between h-32">
-          <div>
-            <div className="flex justify-between items-start mb-1">
-                <div className="p-1.5 bg-emerald-500/10 rounded-lg">
-                   <ArrowUpCircle className="w-4 h-4 text-emerald-500" />
-                </div>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">Receitas</span>
+        {/* Income */}
+        <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 relative overflow-hidden group">
+            <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                <CheckCircle2 size={64} className="text-emerald-500"/>
             </div>
-            <div className="text-xl font-bold text-slate-100">
-                R$ {monthRealizedIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <div className="relative z-10">
+                <p className="text-emerald-500 text-sm font-medium mb-1 flex items-center gap-1"><TrendingUp size={16}/> Receitas</p>
+                <h2 className="text-3xl font-bold text-emerald-400 mb-2">R$ {monthRealizedIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                <p className="text-xs text-slate-500">Previsto: <span className="text-emerald-500/70">+ R$ {monthForecastIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p>
             </div>
-          </div>
-          
-          <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-             <span className="text-slate-500 flex items-center gap-1"><TrendingUp size={12}/> Previsto:</span>
-             <span className="font-bold text-emerald-500">+ {monthForecastIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-          </div>
         </div>
 
-        {/* Card Despesas */}
-        <div className="bg-surface rounded-xl p-4 border border-slate-800 shadow-sm flex flex-col justify-between h-32">
-          <div>
-            <div className="flex justify-between items-start mb-1">
-                <div className="p-1.5 bg-rose-500/10 rounded-lg">
-                   <ArrowDownCircle className="w-4 h-4 text-rose-500" />
-                </div>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full">Despesas</span>
+        {/* Expense */}
+        <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 relative overflow-hidden group">
+            <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                <ShieldCheck size={64} className="text-rose-500"/>
             </div>
-            <div className="text-xl font-bold text-slate-100">
-                R$ {monthRealizedExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <div className="relative z-10">
+                <p className="text-rose-500 text-sm font-medium mb-1 flex items-center gap-1"><TrendingDown size={16}/> Despesas</p>
+                <h2 className="text-3xl font-bold text-rose-400 mb-2">R$ {monthRealizedExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                <p className="text-xs text-slate-500">Previsto: <span className="text-rose-500/70">+ R$ {monthForecastExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p>
             </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-             <span className="text-slate-500 flex items-center gap-1"><TrendingDown size={12}/> Previsto:</span>
-             <span className="font-bold text-rose-500">+ {monthForecastExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-          </div>
         </div>
       </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Middle Row: Banks & Chart */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Column 1: Bank Balances Split */}
-        <div className="lg:col-span-2 bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
-             <h3 className="font-semibold text-slate-200 mb-6">Saldos por Banco</h3>
+        {/* Bank Balances */}
+        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col">
+             <h3 className="font-bold text-white mb-6 text-sm uppercase tracking-wider text-slate-400">Saldos por Banco</h3>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {banks.map(bank => {
+                {banks.filter(b => b.active).map(bank => {
                     const bankPendingForecasts = allPendingForecasts.filter(f => f.bankId === bank.id);
-                    
-                    // Cálculo do total pendente (Receita - Despesa) de forma robusta ignorando case
                     const pendingTotal = bankPendingForecasts.reduce((acc, f) => {
                         const val = Number(f.value);
                         const type = String(f.type).toLowerCase();
-                        
-                        // Check for credit (Receitas)
-                        if (type.includes('credit') || type.includes('crédito') || type.includes('credito') || type.includes('receita')) {
-                            return acc + val;
-                        }
-                        // Check for debit (Despesas)
-                        if (type.includes('debit') || type.includes('débito') || type.includes('debito') || type.includes('despesa')) {
-                            return acc - val;
-                        }
+                        if (type.includes('credit') || type.includes('receita')) return acc + val;
+                        if (type.includes('debit') || type.includes('despesa')) return acc - val;
                         return acc;
                     }, 0);
-                    
                     const projectedBalance = bank.balance + pendingTotal;
 
                     return (
                         <div 
                             key={bank.id} 
                             onClick={() => setSelectedBankForForecasts(bank.id)}
-                            className="p-4 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-900 transition-all cursor-pointer group"
+                            className="p-4 rounded-xl border border-slate-800 bg-black/20 hover:bg-slate-800/50 transition-all cursor-pointer group"
                         >
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-10 h-10 rounded-lg bg-white p-1.5 flex items-center justify-center overflow-hidden">
                                     <img src={bank.logo} alt={bank.name} className="max-w-full max-h-full object-contain" />
                                 </div>
                                 <div>
-                                    <h4 className="font-bold text-slate-200 text-sm group-hover:text-primary transition-colors">{bank.name}</h4>
-                                    <p className="text-xs text-slate-500 max-w-[120px] truncate">{bank.nickname || 'Conta Corrente'}</p>
+                                    <h4 className="font-bold text-slate-200 text-sm">{bank.name}</h4>
                                 </div>
                             </div>
-                            
-                            <div className="grid grid-cols-2 gap-2 divide-x divide-slate-800">
-                                <div>
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Saldo Atual</p>
-                                    <span className={`font-bold text-sm ${bank.balance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-slate-500">Saldo Atual</span>
+                                    <span className={bank.balance >= 0 ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
                                         R$ {bank.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
-                                <div className="pl-4">
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Projetado (Pend.)</p>
-                                    <span className={`font-bold text-sm ${projectedBalance >= 0 ? 'text-sky-400' : 'text-rose-400'}`}>
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-slate-500">Projetado</span>
+                                    <span className={projectedBalance >= 0 ? 'text-slate-300' : 'text-slate-300'}>
                                         R$ {projectedBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
                             </div>
-                            {bankPendingForecasts.length > 0 && (
-                                <div className="mt-2 text-center">
-                                    <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">
-                                        {bankPendingForecasts.length} previsões pendentes
-                                    </span>
-                                </div>
-                            )}
                         </div>
                     );
                 })}
              </div>
         </div>
 
-        {/* Column 2: Chart & Status */}
-        <div className="space-y-6">
-             {/* Small Chart */}
-             <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
-                <h3 className="font-semibold text-slate-200 mb-4 text-sm">Receita x Despesa (Diário)</h3>
-                <div className="h-40 w-full">
-                    {barChartData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={barChartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                            <XAxis 
-                                dataKey="name" 
-                                tick={{fill: '#94a3b8', fontSize: 10}} 
-                                interval={0}
-                            />
-                            <YAxis hide />
-                            <Tooltip 
-                                contentStyle={{backgroundColor: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b', color: '#f8fafc', fontSize: '12px'}}
-                                cursor={{fill: '#1e293b', opacity: 0.3}}
-                            />
-                            <Bar dataKey="Receita" fill="#10b981" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="Despesa" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                        </ResponsiveContainer>
-                    ) : (
-                        <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                            Sem lançamentos neste mês
-                        </div>
-                    )}
-                </div>
-             </div>
-
-             {/* Status */}
-             <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
-                <h3 className="font-semibold text-slate-200 mb-4 text-sm">Status Geral</h3>
-                <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/10">
-                        <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                            <span className="text-sm font-medium text-emerald-100">Conciliados</span>
-                        </div>
-                        <span className="font-bold text-white">{reconciledCount}</span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between p-3 bg-amber-500/10 rounded-lg border border-amber-500/10">
-                        <div className="flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4 text-amber-500" />
-                            <span className="text-sm font-medium text-amber-100">Pendentes</span>
-                        </div>
-                        <span className="font-bold text-white">{pendingCount}</span>
-                    </div>
-                </div>
-             </div>
+        {/* Chart */}
+        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col">
+            <h3 className="font-bold text-white mb-6 text-sm uppercase tracking-wider text-slate-400">Receita x Despesa (Mensal)</h3>
+            <div className="flex-1 w-full min-h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} layout="horizontal" barSize={60}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                        <XAxis dataKey="name" tick={{fill: '#94a3b8', fontSize: 12}} axisLine={false} tickLine={false} />
+                        <YAxis hide />
+                        <Tooltip 
+                            cursor={{fill: '#1e293b', opacity: 0.3}}
+                            contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#fff'}}
+                        />
+                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                            {chartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={index === 0 ? '#10b981' : '#ef4444'} />
+                            ))}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
         </div>
+      </div>
+
+      {/* Analysis Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Income Analysis */}
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+              <h3 className="font-bold text-white mb-6 text-sm uppercase tracking-wider text-slate-400">Análise de Receitas</h3>
+              <div className="space-y-4">
+                  {topIncomeCategories.map((cat, idx) => (
+                      <div key={idx}>
+                          <div className="flex justify-between items-center text-sm mb-1">
+                              <span className="text-slate-300 font-medium">{cat.name}</span>
+                              <span className="text-emerald-400 font-bold">R$ {cat.value.toFixed(2)}</span>
+                          </div>
+                          <div className="w-full bg-slate-800 rounded-full h-2">
+                              <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${cat.percent}%` }}></div>
+                          </div>
+                      </div>
+                  ))}
+                  {topIncomeCategories.length === 0 && <p className="text-slate-500 text-xs italic">Sem receitas no mês.</p>}
+              </div>
+          </div>
+
+          {/* Expense Analysis */}
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+              <h3 className="font-bold text-white mb-6 text-sm uppercase tracking-wider text-slate-400">Análise de Despesas</h3>
+              <div className="space-y-4">
+                  {topExpenseCategories.map((cat, idx) => (
+                      <div key={idx}>
+                          <div className="flex justify-between items-center text-sm mb-1">
+                              <span className="text-slate-300 font-medium">{cat.name}</span>
+                              <span className="text-rose-400 font-bold">R$ {cat.value.toFixed(2)}</span>
+                          </div>
+                          <div className="w-full bg-slate-800 rounded-full h-2">
+                              <div className="bg-rose-500 h-2 rounded-full" style={{ width: `${cat.percent}%` }}></div>
+                          </div>
+                      </div>
+                  ))}
+                  {topExpenseCategories.length === 0 && <p className="text-slate-500 text-xs italic">Sem despesas no mês.</p>}
+              </div>
+          </div>
+      </div>
+
+      {/* Detailed Transactions Table */}
+      <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+              <h3 className="font-bold text-white text-sm uppercase tracking-wider text-slate-400">Lançamentos Detalhados - {MONTHS[currentMonth]} / {currentYear}</h3>
+              <div className="flex gap-2">
+                  <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
+                  <button onClick={handleNextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={16}/></button>
+              </div>
+          </div>
+          <div className="overflow-x-auto max-h-[400px] custom-scroll">
+              <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-950 text-slate-400 font-medium sticky top-0 z-10">
+                      <tr>
+                          <th className="px-6 py-4">Data</th>
+                          <th className="px-6 py-4">Descrição</th>
+                          <th className="px-6 py-4">Categoria</th>
+                          <th className="px-6 py-4">Banco</th>
+                          <th className="px-6 py-4 text-right">Valor</th>
+                          <th className="px-6 py-4">Status</th>
+                          <th className="px-6 py-4 text-center">Ações</th>
+                      </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                      {currentMonthTransactions.length === 0 ? (
+                          <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500">Nenhum lançamento neste mês.</td></tr>
+                      ) : (
+                          currentMonthTransactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(t => {
+                              const bank = banks.find(b => b.id === t.bankId);
+                              const category = categories.find(c => c.id === t.categoryId);
+                              return (
+                                  <tr key={t.id} className="hover:bg-slate-800/30">
+                                      <td className="px-6 py-4 text-slate-400 font-mono">{new Date(t.date).toLocaleDateString('pt-BR')}</td>
+                                      <td className="px-6 py-4 text-slate-200 font-medium">{t.description}</td>
+                                      <td className="px-6 py-4 text-slate-400">{category?.name || '-'}</td>
+                                      <td className="px-6 py-4 text-slate-400 flex items-center gap-2">
+                                          {bank && <img src={bank.logo} className="w-4 h-4 rounded-full bg-white p-0.5" />}
+                                          {bank?.name || 'Desconhecido'}
+                                      </td>
+                                      <td className={`px-6 py-4 text-right font-bold ${t.type === TransactionType.CREDIT ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                          {t.type === TransactionType.CREDIT ? '+' : '-'} R$ {t.value.toFixed(2)}
+                                      </td>
+                                      <td className="px-6 py-4">
+                                          {t.reconciled ? (
+                                              <span className="flex items-center gap-1 text-emerald-500 text-xs font-bold"><CheckCircle2 size={14}/> Conciliado</span>
+                                          ) : (
+                                              <span className="flex items-center gap-1 text-slate-500 text-xs font-bold"><CheckCircle2 size={14}/> Pendente</span>
+                                          )}
+                                      </td>
+                                      <td className="px-6 py-4 text-center">
+                                          <button onClick={() => handleDeleteTransaction(t.id)} className="p-1.5 text-slate-500 hover:text-rose-500 transition-colors">
+                                              <Trash2 size={16}/>
+                                          </button>
+                                      </td>
+                                  </tr>
+                              );
+                          })
+                      )}
+                  </tbody>
+              </table>
+          </div>
       </div>
 
        {/* Overdue Items Modal */}
@@ -708,10 +642,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                        <Calendar size={20} className="text-emerald-500"/> Confirmar Efetivação
                    </h3>
-                   <p className="text-sm text-slate-400 mb-4">
-                       Por favor, confirme a data em que este lançamento realmente ocorreu:
-                   </p>
-                   
                    <div className="space-y-4">
                        <div>
                            <label className="text-xs font-semibold text-slate-500 uppercase">Descrição</label>
@@ -733,20 +663,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
                                onChange={(e) => setRealizeModal({ ...realizeModal, date: e.target.value })}
                            />
                        </div>
-
                        <div className="flex gap-3 pt-2">
-                           <button 
-                               onClick={() => setRealizeModal({ ...realizeModal, isOpen: false })}
-                               className="flex-1 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-800"
-                           >
-                               Cancelar
-                           </button>
-                           <button 
-                               onClick={confirmRealization}
-                               className="flex-1 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 font-medium"
-                           >
-                               Confirmar
-                           </button>
+                           <button onClick={() => setRealizeModal({ ...realizeModal, isOpen: false })} className="flex-1 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-800">Cancelar</button>
+                           <button onClick={confirmRealization} className="flex-1 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 font-medium">Confirmar</button>
                        </div>
                    </div>
                </div>
@@ -819,12 +738,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
                      </div>
                 </div>
 
-                {/* Recurrence Options */}
                 <div className="bg-slate-900 p-3 rounded-lg border border-slate-800">
                     <label className="text-xs font-semibold text-slate-500 mb-2 block flex items-center gap-2">
                         <Repeat size={12}/> RECORRÊNCIA (OPCIONAL)
                     </label>
-                    
                     <div className="flex items-center gap-4 mb-2">
                         <label className="flex items-center gap-2 cursor-pointer">
                             <input 
@@ -836,7 +753,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
                             <span className="text-sm text-slate-300">Fixo Mensal</span>
                         </label>
                     </div>
-
                     {!formData.isFixed && (
                             <div className="flex items-center gap-2">
                             <CalendarDays className="text-slate-500" size={16}/>
@@ -852,26 +768,13 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
                 </div>
 
                 <div className="pt-2 flex gap-3">
-                    <button 
-                        type="button"
-                        onClick={() => handleQuickSave('forecast')}
-                        className="flex-1 flex flex-col items-center justify-center gap-1 py-3 border border-slate-700 rounded-lg hover:bg-slate-800 text-slate-400 transition-colors"
-                    >
+                    <button type="button" onClick={() => handleQuickSave('forecast')} className="flex-1 flex flex-col items-center justify-center gap-1 py-3 border border-slate-700 rounded-lg hover:bg-slate-800 text-slate-400 transition-colors">
                         <ThumbsDown size={20} className="text-slate-500" />
                         <span className="text-xs font-semibold">Previsão (Futuro)</span>
                     </button>
-
-                    <button 
-                        type="button"
-                        onClick={() => handleQuickSave('transaction')}
-                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 text-slate-900 rounded-lg shadow-sm transition-colors ${
-                            formData.type === TransactionType.CREDIT ? 'bg-primary hover:bg-primaryHover' : 'bg-rose-600 hover:bg-rose-700'
-                        }`}
-                    >
+                    <button type="button" onClick={() => handleQuickSave('transaction')} className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 text-slate-900 rounded-lg shadow-sm transition-colors ${formData.type === TransactionType.CREDIT ? 'bg-primary hover:bg-primaryHover' : 'bg-rose-600 hover:bg-rose-700'}`}>
                         <ThumbsUp size={20} />
-                        <span className="text-xs font-semibold">
-                            {formData.installments > 1 || formData.isFixed ? 'Lançar 1ª + Previsões' : 'Lançamento (Hoje)'}
-                        </span>
+                        <span className="text-xs font-semibold">{formData.installments > 1 || formData.isFixed ? 'Lançar 1ª + Previsões' : 'Lançamento (Hoje)'}</span>
                     </button>
                 </div>
             </div>
