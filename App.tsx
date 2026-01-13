@@ -75,25 +75,21 @@ function App() {
   }, [isAuthenticated, user]);
 
   // Derived state updates (Balances)
-  // REVERTED: Balances now include ALL transactions (Pending + Reconciled) based on user request.
   useEffect(() => {
     if (banks.length > 0) {
         const updatedBanks = banks.map(bank => {
             const bankTxs = transactions.filter(t => t.bankId === bank.id);
             const balance = bankTxs.reduce((acc, t) => {
-                const val = Number(t.value);
-                // Adjust string matching to be robust ('credito', 'credit', etc)
-                const isCredit = String(t.type).toLowerCase().includes('credit') || String(t.type).toLowerCase().includes('receita');
-                return isCredit ? acc + val : acc - val;
+                return t.type === 'credito' ? acc + t.value : acc - t.value;
             }, 0);
             return { ...bank, balance };
         });
         
-        // Check if actually changed to avoid infinite loops
-        const hasChanged = updatedBanks.some((b, i) => Math.abs(b.balance - banks[i].balance) > 0.001);
+        // Simple check to avoid loop if nothing changed value-wise
+        const hasChanged = updatedBanks.some((b, i) => b.balance !== banks[i].balance);
         if (hasChanged) setBanks(updatedBanks);
     }
-  }, [transactions, banks.length]); 
+  }, [transactions.length, banks.length]); 
 
   const getHeaders = () => {
     return {
@@ -144,7 +140,7 @@ function App() {
       if (res.ok) setKeywordRules(await res.json());
   };
 
-  // ... (Rest of CRUD handlers remain the same) ...
+  // ... (CRUD handlers remain the same as previous) ...
   const handleAddCategory = async (category: Omit<Category, 'id'>) => {
       try {
           const res = await fetch('/api/categories', {
@@ -333,7 +329,7 @@ function App() {
     switch (activeTab) {
       case 'dashboard': return <Dashboard userId={user.id} transactions={transactions} banks={activeBanks} forecasts={forecasts} categories={categories} onRefresh={fetchInitialData} />;
       case 'transactions': return <Transactions userId={user.id} transactions={transactions} banks={activeBanks} categories={categories} onAddTransaction={handleAddTransaction} onEditTransaction={handleEditTransaction} onDeleteTransaction={handleDeleteTransaction} onReconcile={handleReconcile} onBatchUpdate={handleBatchUpdateTransaction} />;
-      case 'import': return <OFXImports userId={user.id} banks={activeBanks} keywordRules={keywordRules} transactions={transactions} onTransactionsImported={fetchInitialData} />;
+      case 'import': return <OFXImports userId={user.id} banks={activeBanks} keywordRules={keywordRules} transactions={transactions} onTransactionsImported={fetchTransactions} />;
       case 'rules': return <KeywordRules categories={categories} rules={keywordRules} banks={activeBanks} onAddRule={handleAddKeywordRule} onDeleteRule={handleDeleteKeywordRule} />;
       case 'banks': return <BankList banks={banks} onUpdateBank={handleUpdateBank} onAddBank={handleAddBank} onDeleteBank={handleDeleteBank} />;
       case 'categories': return <Categories categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} />;

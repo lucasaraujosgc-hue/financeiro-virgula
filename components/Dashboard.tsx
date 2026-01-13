@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Transaction, TransactionType, Bank, Forecast, Category, CategoryType } from '../types';
-import { Wallet, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar, ShieldCheck } from 'lucide-react';
+import { Wallet, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar, Edit2, ShieldCheck, FileText, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface DashboardProps {
@@ -71,6 +71,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       return fDateMidnight < startOfSelectedMonth && !f.realized;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+  const overdueIncome = overdueForecasts.filter(f => f.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
+  const overdueExpense = overdueForecasts.filter(f => f.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
+
   const allPendingForecasts = forecasts.filter(f => !f.realized);
 
   const currentMonthTransactions = transactions.filter(t => {
@@ -107,7 +110,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
   const topIncomeCategories = getTopCategories(TransactionType.CREDIT);
   const topExpenseCategories = getTopCategories(TransactionType.DEBIT);
 
-  // GLOBAL BALANCE LOGIC: Sum of ALL transactions (Reconciled + Pending)
   const allTimeIncome = transactions.filter(t => t.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
   const allTimeExpense = transactions.filter(t => t.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
   const totalBalance = allTimeIncome - allTimeExpense;
@@ -205,59 +207,34 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
       const installments = formData.isFixed ? 60 : Math.max(1, Math.floor(Number(formData.installments)));
 
       try {
-          // If explicitly chosen as forecast OR if there are multiple installments, treat as forecast logic
-          if (target === 'forecast') {
-              // SAVE AS FORECAST
-              for (let i = 0; i < installments; i++) {
-                  const currentDate = new Date(baseDate);
-                  currentDate.setMonth(baseDate.getMonth() + i);
-                  const dateStr = currentDate.toISOString().split('T')[0];
-                  const isRecurrent = installments > 1 || formData.isFixed;
-                  
+          for (let i = 0; i < installments; i++) {
+              const currentDate = new Date(baseDate);
+              currentDate.setMonth(baseDate.getMonth() + i);
+              const dateStr = currentDate.toISOString().split('T')[0];
+              const isRecurrent = installments > 1 || formData.isFixed;
+              const currentInstallment = i + 1;
+              
+              if (target === 'transaction' && i === 0) {
+                  const descSuffix = isRecurrent ? (formData.isFixed ? ' (Fixo)' : ` (${currentInstallment}/${installments})`) : '';
+                  await fetch('/api/transactions', {
+                       method: 'POST', headers: getHeaders(),
+                       body: JSON.stringify({
+                           date: dateStr, description: formData.description + descSuffix, value: value, type: formData.type,
+                           categoryId: Number(formData.categoryId), bankId: Number(formData.bankId), reconciled: false
+                       })
+                   });
+              } else {
                   await fetch('/api/forecasts', {
                       method: 'POST', headers: getHeaders(),
                       body: JSON.stringify({
                           date: dateStr, description: formData.description, value: value, type: formData.type,
                           categoryId: Number(formData.categoryId), bankId: Number(formData.bankId),
-                          installmentCurrent: i + 1, installmentTotal: formData.isFixed ? 0 : installments,
+                          installmentCurrent: currentInstallment, installmentTotal: formData.isFixed ? 0 : installments,
                           groupId: isRecurrent ? groupId : null, realized: false
                       })
                   });
               }
-          } else {
-              // SAVE AS TRANSACTION (Only the first one, others as forecast if recurrent)
-              for (let i = 0; i < installments; i++) {
-                  const currentDate = new Date(baseDate);
-                  currentDate.setMonth(baseDate.getMonth() + i);
-                  const dateStr = currentDate.toISOString().split('T')[0];
-                  const isRecurrent = installments > 1 || formData.isFixed;
-                  const currentInstallment = i + 1;
-                  
-                  if (i === 0) {
-                      // First one goes to Transactions
-                      const descSuffix = isRecurrent ? (formData.isFixed ? ' (Fixo)' : ` (${currentInstallment}/${installments})`) : '';
-                      await fetch('/api/transactions', {
-                           method: 'POST', headers: getHeaders(),
-                           body: JSON.stringify({
-                               date: dateStr, description: formData.description + descSuffix, value: value, type: formData.type,
-                               categoryId: Number(formData.categoryId), bankId: Number(formData.bankId), reconciled: false
-                           })
-                       });
-                  } else {
-                      // Rest go to Forecasts
-                      await fetch('/api/forecasts', {
-                          method: 'POST', headers: getHeaders(),
-                          body: JSON.stringify({
-                              date: dateStr, description: formData.description, value: value, type: formData.type,
-                              categoryId: Number(formData.categoryId), bankId: Number(formData.bankId),
-                              installmentCurrent: currentInstallment, installmentTotal: formData.isFixed ? 0 : installments,
-                              groupId: isRecurrent ? groupId : null, realized: false
-                          })
-                      });
-                  }
-              }
           }
-          
           setIsModalOpen(false);
           await onRefresh();
       } catch (error) { alert("Erro ao salvar"); }
@@ -312,7 +289,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
             <div className="relative z-10">
                 <p className="text-slate-400 text-xs font-medium mb-1">Saldo Atual</p>
                 <h2 className="text-2xl font-bold text-white mb-1">R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
-                <p className="text-[10px] text-slate-500">Saldo consolidado (Inclui pendentes)</p>
+                <p className="text-[10px] text-slate-500">Apenas lançamentos efetivados</p>
             </div>
         </div>
 
@@ -349,25 +326,15 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
              <h3 className="font-bold text-white mb-4 text-xs uppercase tracking-wider text-slate-400">Saldos por Banco</h3>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {banks.filter(b => b.active).map(bank => {
-                    // Calculate ACTUAL (Transactions)
-                    const bankTransactions = transactions.filter(t => t.bankId === bank.id);
-                    const bankBalance = bankTransactions.reduce((acc, t) => {
-                        const val = Number(t.value);
-                        const type = String(t.type).toLowerCase();
-                        if (type.includes('credit') || type.includes('receita') || type === 'credito') return acc + val;
-                        return acc - val;
-                    }, 0);
-
-                    // Calculate FORECAST (Future)
                     const bankPendingForecasts = allPendingForecasts.filter(f => f.bankId === bank.id);
-                    const forecastsTotal = bankPendingForecasts.reduce((acc, f) => {
+                    const pendingTotal = bankPendingForecasts.reduce((acc, f) => {
                         const val = Number(f.value);
                         const type = String(f.type).toLowerCase();
-                        if (type.includes('credit') || type.includes('receita') || type === 'credito') return acc + val;
-                        return acc - val;
+                        if (type.includes('credit') || type.includes('receita')) return acc + val;
+                        if (type.includes('debit') || type.includes('despesa')) return acc - val;
+                        return acc;
                     }, 0);
-
-                    const projectedBalance = bankBalance + forecastsTotal;
+                    const projectedBalance = bank.balance + pendingTotal;
 
                     return (
                         <div 
@@ -386,8 +353,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
                             <div className="space-y-1">
                                 <div className="flex justify-between items-center text-[10px]">
                                     <span className="text-slate-500">Atual</span>
-                                    <span className={bankBalance >= 0 ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
-                                        R$ {bankBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    <span className={bank.balance >= 0 ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
+                                        R$ {bank.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center text-[10px]">
@@ -530,7 +497,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
           </div>
       </div>
 
-       {/* Overdue Items Modal and other modals omitted for brevity, but they are part of the component structure */}
+       {/* Overdue Items Modal */}
        {isOverdueModalOpen && (
          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsOverdueModalOpen(false)} />
@@ -600,6 +567,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, transactions, banks, fore
          </div>
        )}
 
+       {/* Bank Specific Forecasts Modal */}
        {selectedBankForForecasts && (
            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSelectedBankForForecasts(null)} />
